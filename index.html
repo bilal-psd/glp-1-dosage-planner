@@ -21,7 +21,7 @@ input[type=number]{width:84px}
 .sched{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;padding:10px 0;border-top:1px dashed var(--line)}
 .sched:first-child{border-top:0}
 .sched .drug{grid-column:1/-1}
-button{font:600 .9375rem "Instrument Sans",sans-serif;padding:7px 12px;border-radius:6px;border:1px solid var(--acc);background:transparent;color:var(--acc);cursor:pointer}
+button{font:600 1rem "Instrument Sans",sans-serif;padding:7px 12px;border-radius:6px;border:1px solid var(--acc);background:transparent;color:var(--acc);cursor:pointer}
 button.x{border-color:var(--line);color:var(--mute)}
 #chart{width:100%;height:380px}
 .ev{overflow-x:auto;font:.8125rem/1.6 "JetBrains Mono",monospace;color:var(--mute)}
@@ -31,7 +31,7 @@ button.x{border-color:var(--line);color:var(--mute)}
 .seg button[aria-checked="true"]{background:var(--acc);color:var(--card)}
 .chk{flex-direction:row;align-items:center;gap:6px;font-size:1rem;color:var(--ink);padding-bottom:6px}
 .chk input{width:auto}
-.seg.sm{margin:0}.seg.sm button{padding:5px 10px;font-size:.875rem}
+.seg.sm{margin:0}.seg.sm button{padding:5px 10px;font-size:.8125rem}
 .stephead{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .stephead b{font-size:1rem}.stephead small{color:var(--mute);font:.8125rem "JetBrains Mono",monospace}
 #doseRow{padding:10px 0;border-bottom:1px solid var(--line)}
@@ -40,17 +40,17 @@ button.x{border-color:var(--line);color:var(--mute)}
 .clk input[type=range]{width:100%;accent-color:var(--acc);height:28px}
 .clk button{width:40px;height:36px;padding:0;font-size:1.25rem}
 .ticks{grid-column:2;display:flex;justify-content:space-between;font:.75rem "JetBrains Mono",monospace;color:var(--mute);margin-top:-6px}
-.note{grid-column:1/-1;font-size:.875rem;color:var(--mute)}
+.note{grid-column:1/-1;font-size:.8125rem;color:var(--mute)}
 .pen{border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:10px 12px;margin:12px 0}
 .penhead{display:flex;align-items:end;gap:10px;flex-wrap:wrap;justify-content:space-between}
-.penhead b{font-size:1.0625rem}
-.penfoot{margin-top:8px;font:.875rem "JetBrains Mono",monospace;color:var(--mute)}
+.penhead b{font-size:1rem}
+.penfoot{margin-top:8px;font:.8125rem "JetBrains Mono",monospace;color:var(--mute)}
 .meter{height:6px;border-radius:3px;background:var(--grid);overflow:hidden;margin:4px 0}
 .meter i{display:block;height:100%;background:var(--acc)}
 .penfoot.over{color:#c2410c}.penfoot.over .meter i{background:#c2410c}
 .pen .addstep{margin-top:6px}
 #doseRow .note{grid-column:auto}
-#notice{display:flex;gap:10px;align-items:start;justify-content:space-between;border-left:4px solid var(--acc)}
+#notice{display:flex;gap:10px;align-items:start;justify-content:space-between;border-color:var(--acc);background:color-mix(in srgb,var(--acc) 8%,var(--card))}
 #notice[hidden]{display:none}#notice p{margin:0}#notice p+p{margin-top:4px}
 #globalRow{padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:4px}
 </style></head>
