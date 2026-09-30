@@ -1,60 +1,63 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GLP-1 plotter — replica (milestone 1)</title>
+<title>GLP-1 plotter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 <style>
 :root{--bg:#f6f4ef;--card:#fff;--ink:#1d1b18;--mute:#6d675d;--line:#e2ddd2;--acc:#6e3b75;--grid:#eee9df;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15130f;--card:#1f1c17;--ink:#ece6da;--mute:#a39b8c;--line:#35302753;--acc:#c79bd0;--grid:#2b2720}}
-:root[data-theme="dark"]{--bg:#15130f;--card:#1f1c17;--ink:#ece6da;--mute:#a39b8c;--line:#35302753;--acc:#c79bd0;--grid:#2b2720}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15130f;--card:#1f1c17;--ink:#ece6da;--mute:#a39b8c;--line:#3d372e;--acc:#c79bd0;--grid:#2b2720}}
+:root[data-theme="dark"]{--bg:#15130f;--card:#1f1c17;--ink:#ece6da;--mute:#a39b8c;--line:#3d372e;--acc:#c79bd0;--grid:#2b2720}
 *,*::before,*::after{box-sizing:inherit}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Instrument Sans",system-ui,sans-serif}
+body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.5 "Instrument Sans",system-ui,sans-serif}
 main{max-width:920px;margin:0 auto;padding:20px 16px 40px}
-h1{font-size:22px;margin:0 0 4px}p.sub{color:var(--mute);margin:0 0 18px;max-width:65ch}
+h1{font-size:1.5rem;margin:0 0 4px}p.sub{color:var(--mute);margin:0 0 18px;max-width:65ch}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
-label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
-input,select{font:14px "JetBrains Mono",monospace;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
-input[type=number]{width:74px}
+label{display:flex;flex-direction:column;font-size:.8125rem;color:var(--mute);gap:3px}
+input,select{font:1rem "JetBrains Mono",monospace;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
+input[type=number]{width:84px}
 .sched{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;padding:10px 0;border-top:1px dashed var(--line)}
 .sched:first-child{border-top:0}
 .sched .drug{grid-column:1/-1}
-button{font:600 13px "Instrument Sans",sans-serif;padding:7px 12px;border-radius:6px;border:1px solid var(--acc);background:transparent;color:var(--acc);cursor:pointer}
+button{font:600 .9375rem "Instrument Sans",sans-serif;padding:7px 12px;border-radius:6px;border:1px solid var(--acc);background:transparent;color:var(--acc);cursor:pointer}
 button.x{border-color:var(--line);color:var(--mute)}
 #chart{width:100%;height:380px}
-.ev{overflow-x:auto;font:12px/1.6 "JetBrains Mono",monospace;color:var(--mute)}
+.ev{overflow-x:auto;font:.8125rem/1.6 "JetBrains Mono",monospace;color:var(--mute)}
 .ev b{color:var(--ink)}
 .seg{display:inline-flex;border:1px solid var(--acc);border-radius:8px;overflow:hidden;margin-bottom:12px}
 .seg button{border:0;border-radius:0;padding:7px 12px}
 .seg button[aria-checked="true"]{background:var(--acc);color:var(--card)}
-.chk{flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--ink);padding-bottom:6px}
+.chk{flex-direction:row;align-items:center;gap:6px;font-size:1rem;color:var(--ink);padding-bottom:6px}
 .chk input{width:auto}
-.seg.sm{margin:0}.seg.sm button{padding:4px 10px;font-size:12px}
+.seg.sm{margin:0}.seg.sm button{padding:5px 10px;font-size:.875rem}
 .stephead{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.stephead b{font-size:14px}.stephead small{color:var(--mute);font:12px "JetBrains Mono",monospace}
+.stephead b{font-size:1rem}.stephead small{color:var(--mute);font:.8125rem "JetBrains Mono",monospace}
 #doseRow{padding:10px 0;border-bottom:1px solid var(--line)}
 .clk{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
-.clk .out{grid-column:1/-1;font:600 15px "JetBrains Mono",monospace}.clk .out span{color:var(--mute);font-weight:400}
+.clk .out{grid-column:1/-1;font:600 1rem "JetBrains Mono",monospace}.clk .out span{color:var(--mute);font-weight:400}
 .clk input[type=range]{width:100%;accent-color:var(--acc);height:28px}
-.clk button{width:38px;height:34px;padding:0;font-size:18px}
-.ticks{grid-column:2;display:flex;justify-content:space-between;font:11px "JetBrains Mono",monospace;color:var(--mute);margin-top:-6px}
-.note{grid-column:1/-1;font-size:12px;color:var(--mute)}
+.clk button{width:40px;height:36px;padding:0;font-size:1.25rem}
+.ticks{grid-column:2;display:flex;justify-content:space-between;font:.75rem "JetBrains Mono",monospace;color:var(--mute);margin-top:-6px}
+.note{grid-column:1/-1;font-size:.875rem;color:var(--mute)}
 .pen{border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:10px 12px;margin:12px 0}
 .penhead{display:flex;align-items:end;gap:10px;flex-wrap:wrap;justify-content:space-between}
-.penhead b{font-size:15px}
-.penfoot{margin-top:8px;font:12px "JetBrains Mono",monospace;color:var(--mute)}
+.penhead b{font-size:1.0625rem}
+.penfoot{margin-top:8px;font:.875rem "JetBrains Mono",monospace;color:var(--mute)}
 .meter{height:6px;border-radius:3px;background:var(--grid);overflow:hidden;margin:4px 0}
 .meter i{display:block;height:100%;background:var(--acc)}
 .penfoot.over{color:#c2410c}.penfoot.over .meter i{background:#c2410c}
 .pen .addstep{margin-top:6px}
 #doseRow .note{grid-column:auto}
+#notice{display:flex;gap:10px;align-items:start;justify-content:space-between;border-left:4px solid var(--acc)}
+#notice[hidden]{display:none}#notice p{margin:0}#notice p+p{margin-top:4px}
 #globalRow{padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:4px}
 </style></head>
 <body><main>
 <h1>GLP-1 plotter</h1>
 <p class="sub">Estimated medication in your body over time, using the same one-compartment model and drug constants as glapp.io's plotter. Week ranges are fixed so a 1-week step means exactly one dose. Your inputs are saved in this browser.</p>
+<div class="card" id="notice" role="status" hidden><div id="noticeText"></div><button class="x" id="noticeClose" aria-label="Dismiss">✕</button></div>
 <div class="card"><div class="row">
 <label>Start date<input id="start" type="date"></label>
 <label>Length (weeks)<input id="len" type="number" min="1" max="104"></label>
@@ -81,13 +84,24 @@ const TIRZ="tirzepatide-injection",CLICKS=60,PEN_CLICKS=240,STRENGTHS=[2.5,5,7.5
 const EXAMPLE={start:"2026-08-01",weeks:12,drug:TIRZ,freq:7,clicks:false,gold:false,pens:[],steps:[{dose:2.5,weeks:7},{dose:3.7,weeks:1},{dose:3.25,weeks:1}]};
 const $=id=>document.getElementById(id);
 const mgFmt=v=>(+v).toFixed(2).replace(/\.?0+$/,"");
+const esc=v=>String(v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+function notify(lines){$("noticeText").innerHTML=lines.map(l=>`<p>${l}</p>`).join("");$("notice").hidden=!lines.length}
+let pending=[];   // messages found while loading, shown once the page is built
+// Dates: the model works in days from the start; the start date only labels them.
+function dateAt(day){const d=new Date(state.start+"T00:00");if(isNaN(d))return null;d.setDate(d.getDate()+Math.floor(day));return d}
+const dayLabel=(day,long)=>{const d=dateAt(day);return d?d.toLocaleDateString(undefined,long?{weekday:"short",day:"numeric",month:"short",year:"numeric"}:{day:"numeric",month:"short"}):`day ${day}`};
 
 // ---- Load: a glapp-style link in the URL wins, then what this browser saved, then the example.
 function fromUrl(){const q=new URLSearchParams(location.search);if(!q.has("medication1"))return null;
  const rows=[];for(let i=1;q.has("medication"+i);i++)rows.push({drug:q.get("medication"+i),dose:+q.get("dose"+i),from:+q.get("from"+i),to:+q.get("to"+i),freq:+q.get("frequency"+i)});
  rows.sort((a,b)=>a.from-b.from);const steps=[];let next=1;
  for(const r of rows){if(r.from>next)steps.push({dose:0,weeks:r.from-next});steps.push({dose:r.dose,weeks:Math.max(1,r.to-Math.max(r.from,next)+1)});next=Math.max(next,r.to+1)}
- return {...EXAMPLE,start:q.get("start_date")||EXAMPLE.start,weeks:+(q.get("length")||12),drug:rows[0].drug in DRUGS?rows[0].drug:TIRZ,freq:rows[0].freq||7,steps}}
+ const drug=rows[0].drug in DRUGS?rows[0].drug:TIRZ,freq=rows[0].freq||7;
+ if(!(rows[0].drug in DRUGS))pending.push(`The link's medication “${esc(rows[0].drug)}” isn't supported, so ${DRUGS[TIRZ].name} is used.`);
+ const drugs=new Set(rows.map(r=>r.drug)),freqs=new Set(rows.map(r=>r.freq||7));
+ if(drugs.size>1)pending.push(`The link has ${drugs.size} medications. This plotter shows one, so every step uses ${DRUGS[drug].name}.`);
+ if(freqs.size>1)pending.push(`The link doses at different intervals (${[...freqs].join(", ")} days). Every step now doses every ${freq} days; change “Every (days)” if that's wrong.`);
+ return {...EXAMPLE,start:q.get("start_date")||EXAMPLE.start,weeks:+(q.get("length")||12),drug,freq,steps}}
 function fromStorage(){try{const v=JSON.parse(localStorage.getItem(KEY));return v&&Array.isArray(v.steps)&&v.steps.length?v:null}catch{return null}}
 let state=structuredClone(fromUrl()||fromStorage()||EXAMPLE);
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch{}}
@@ -100,22 +114,26 @@ function layout(){let w=1;state.steps.forEach(s=>{s.weeks=Math.max(1,Math.round(
 function syncDoses(){if(state.clicks)state.steps.forEach(s=>{s.dose=+(s.clicks*penOf(s).strength/CLICKS).toFixed(4)})}
 function setClicks(on){
  if(on&&!clicksAllowed())return;
- if(on){if(!state.pens.length||state.steps.some(s=>s.pen==null||!state.pens[s.pen])){const max=Math.max(...state.steps.map(s=>s.dose));state.pens=[{strength:STRENGTHS.find(v=>v>=max)||15}];state.steps.forEach(s=>s.pen=0)}
-  state.steps.forEach(s=>s.clicks=toClicks(s.dose,penOf(s).strength));state.steps.sort((a,b)=>a.pen-b.pen);layout()}
- state.clicks=on;syncDoses();render();draw()}
+ const msg=[];
+ if(on){if(!state.pens.length||state.steps.some(s=>s.pen==null||!state.pens[s.pen])){const max=Math.max(...state.steps.map(s=>s.dose)),str=STRENGTHS.find(v=>v>=max)||15;state.pens=[{strength:str}];state.steps.forEach(s=>s.pen=0);msg.push(`All steps are on one ${str} mg pen. If it runs out, change a pen's strength or use “+ Add pen”.`)}
+  state.steps.forEach((s,i)=>{const before=s.dose;s.clicks=toClicks(s.dose,penOf(s).strength);const after=s.clicks*penOf(s).strength/CLICKS;if(Math.abs(after-before)>1e-6)msg.push(`Step ${i+1}: ${mgFmt(before)} mg can't be dialled exactly on a ${penOf(s).strength} mg pen, so it's now ${s.clicks} clicks = ${mgFmt(after)} mg.`)});
+  state.steps.sort((a,b)=>a.pen-b.pen);layout()}
+ state.clicks=on;syncDoses();render();draw();notify(msg)}
 
 // ---- Top controls
 $("gDrug").innerHTML=Object.entries(DRUGS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join("");
 function fillTop(){$("start").value=state.start;$("len").value=state.weeks;$("gDrug").value=state.drug;$("gFreq").value=state.freq;$("gold").checked=state.gold}
 $("start").addEventListener("input",e=>{state.start=e.target.value;draw()});
-$("len").addEventListener("input",e=>{state.weeks=Math.max(1,+e.target.value||1);draw()});
+$("len").addEventListener("input",e=>{if(+e.target.value>=1){state.weeks=+e.target.value;draw()}});
+$("len").addEventListener("change",()=>{$("len").value=state.weeks});
 $("gDrug").addEventListener("input",e=>{state.drug=e.target.value;if(!clicksAllowed())state.clicks=false;render();draw()});
 $("gFreq").addEventListener("input",e=>{state.freq=Math.max(0.5,+e.target.value||0.5);draw()});
 $("gold").addEventListener("change",e=>{state.gold=e.target.checked;draw()});
 $("inMg").onclick=()=>setClicks(false);$("inClicks").onclick=()=>setClicks(true);
 $("add").onclick=()=>{const l=state.steps[state.steps.length-1];state.steps.push({...l,weeks:1});layout();render();draw()};
 $("addPen").onclick=()=>{const l=state.steps[state.steps.length-1],p=state.pens.length;state.pens.push({strength:penOf(l).strength});state.steps.push({...l,weeks:1,pen:p});layout();syncDoses();render();draw()};
-$("reset").onclick=()=>{state=structuredClone(EXAMPLE);layout();fillTop();render();draw()};
+$("noticeClose").onclick=()=>notify([]);
+$("reset").onclick=()=>{if(!confirm("Replace your plan with the example? Your current plan will be lost."))return;notify([]);state=structuredClone(EXAMPLE);layout();fillTop();render();draw()};
 
 // ---- Steps and pens
 function stepEl(s,i){const d=document.createElement("div");d.className="sched";
@@ -152,24 +170,25 @@ function render(){
 const COLOR="#6e3b75";
 const chart=echarts.init($("chart"));addEventListener("resize",()=>chart.resize());
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
-function draw(){layout();const total=state.steps[state.steps.length-1].to;if(total>state.weeks){state.weeks=total;$("len").value=total}
+function draw(){layout();const total=state.steps[state.steps.length-1].to;if(total>state.weeks){state.weeks=total;if(document.activeElement!==$("len"))$("len").value=total}
  const perStep=state.steps.map(s=>doseEvents(s,state.freq,state.weeks)),events=perStep.flat(),acc=css("--acc")||COLOR;
  chart.setOption({backgroundColor:"transparent",animation:false,grid:{left:8,right:12,top:20,bottom:50,containLabel:true},
-  tooltip:{trigger:"axis",confine:true,valueFormatter:v=>v.toFixed(2)+" mg"},
-  xAxis:{type:"value",name:"Days from start",nameLocation:"middle",nameGap:28,nameTextStyle:{color:css("--mute")},axisLabel:{color:css("--mute")},splitLine:{lineStyle:{color:css("--grid"),type:"dashed"}},max:state.weeks*7},
-  yAxis:{type:"value",axisLabel:{color:css("--mute"),formatter:v=>v.toFixed(1)+" mg"},splitLine:{lineStyle:{color:css("--grid"),type:"dashed"}}},
+  textStyle:{fontSize:12},
+  tooltip:{trigger:"axis",confine:true,formatter:ps=>{const [t,v]=ps[0].data;return `${dayLabel(t,true)} · day ${t}<br><b>${v.toFixed(2)} mg</b>`}},
+  xAxis:{type:"value",name:dateAt(0)?"Date":"Days from start",nameLocation:"middle",nameGap:30,nameTextStyle:{color:css("--mute"),fontSize:12},axisLabel:{color:css("--mute"),fontSize:12,hideOverlap:true,formatter:v=>dateAt(0)?dayLabel(v):v},interval:7*Math.max(1,Math.ceil(state.weeks/10)),splitLine:{lineStyle:{color:css("--grid"),type:"dashed"}},max:state.weeks*7},
+  yAxis:{type:"value",axisLabel:{color:css("--mute"),fontSize:12,formatter:v=>v.toFixed(1)+" mg"},splitLine:{lineStyle:{color:css("--grid"),type:"dashed"}}},
   dataZoom:state.weeks>12?[{type:"slider",bottom:6,height:20},{type:"inside"}]:[],
   series:[{type:"line",name:DRUGS[state.drug].name,data:simulate(events,state.drug,state.weeks),smooth:true,showSymbol:false,lineStyle:{width:2,color:acc},itemStyle:{color:acc},areaStyle:{color:acc,opacity:.15},
    markLine:{symbol:"none",silent:true,label:{show:false},lineStyle:{type:"dashed",color:css("--line"),width:1},data:[...new Set(events.map(e=>e.t))].map(x=>({xAxis:x}))}}]},true);
- document.querySelectorAll("[data-sum]").forEach(el=>{const i=+el.dataset.i,s=state.steps[i];if(!s)return;const n=perStep[i].length;el.textContent=(s.from===s.to?`week ${s.from}`:`weeks ${s.from}–${s.to}`)+(s.dose>0?` · ${n} dose${n===1?"":"s"}`:" · pause")});
+ document.querySelectorAll("[data-sum]").forEach(el=>{const i=+el.dataset.i,s=state.steps[i];if(!s)return;const n=perStep[i].length;el.textContent=(s.from===s.to?`week ${s.from}`:`weeks ${s.from}–${s.to}`)+(dateAt(0)?` (${dayLabel((s.from-1)*7)}–${dayLabel(s.to*7-1)})`:"")+(s.dose>0?` · ${n} dose${n===1?"":"s"}`:" · pause")});
  if(state.clicks)state.pens.forEach((p,pi)=>{const el=document.querySelector(`[data-penfoot="${pi}"]`);if(!el)return;
   const used=state.steps.reduce((n,s,i)=>s.pen===pi?n+s.clicks*perStep[i].length:n,0),cap=penCap(),left=cap-used;
   el.className="penfoot"+(left<0?" over":"");
-  el.innerHTML=`<div class="meter"><i style="width:${Math.min(100,Math.max(0,used/cap*100))}%"></i></div>`+(left>=0?`${left} of ${cap} clicks left${state.gold?" (incl. golden dose)":""} · ${mgFmt(left*p.strength/CLICKS)} mg`:`${-left} clicks more than the pen holds (${mgFmt(-left*p.strength/CLICKS)} mg short)`)});
- $("events").innerHTML="<b>Dose events (day: mg)</b><br>"+state.steps.map((s,i)=>`Step ${i+1}: `+(perStep[i].map(e=>`${e.t}: ${mgFmt(e.dose)}`).join(" · ")||"none")).join("<br>");
+  el.innerHTML=`<div class="meter"><i style="width:${Math.min(100,Math.max(0,used/cap*100))}%"></i></div>`+(left>=0?`${left} of ${cap} clicks left${state.gold?" (incl. golden dose)":""} · ${mgFmt(left*p.strength/CLICKS)} mg`:`Needs ${-left} clicks more than this pen holds (${mgFmt(-left*p.strength/CLICKS)} mg short). Add a pen or move steps to a new one.`)});
+ $("events").innerHTML="<b>Dose events (date: mg)</b><br>"+state.steps.map((s,i)=>`Step ${i+1}: `+(perStep[i].map(e=>`${dayLabel(e.t)}: ${mgFmt(e.dose)}`).join(" · ")||"none")).join("<br>");
  save()}
 if(!clicksAllowed())state.clicks=false;
-layout();fillTop();render();draw();
+layout();fillTop();render();draw();notify(pending);
 // Once a link has been loaded and saved, drop its query string so a reload uses the saved (possibly edited) plan.
 if(location.search)try{history.replaceState(null,"",location.pathname+location.hash)}catch{}
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
