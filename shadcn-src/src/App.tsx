@@ -1,0 +1,435 @@
+// The GLP-1 plotter built only from stock shadcn/ui components, for comparison with the hand-styled page (../index.html).
+// Same maths (../model.js), same saved plan (localStorage "glp1-plotter:v1") and same share-link format.
+import { useEffect, useMemo, useState } from "react"
+import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
+import { Link2, Minus, Plus, X } from "lucide-react"
+
+import * as M from "../../model.js"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+
+type Drug = { halfLife: number; bioavailability: number; volumeOfDistribution: number; tmax: number; name: string }
+type Step = { dose: number; weeks: number; pen?: number; clicks?: number; from?: number; to?: number }
+type Plan = { start: string; weeks: number; drug: string; freq: number; clicks: boolean; gold: boolean; pens: { strength: number }[]; steps: Step[] }
+type DoseEvent = { t: number; dose: number }
+
+const DRUGS = M.DRUGS as Record<string, Drug>
+const { TIRZ, CLICKS, PEN_CLICKS, STRENGTHS } = M
+const EXAMPLE = M.EXAMPLE as Plan
+const doseEvents = M.doseEvents as (s: Step, freq: number, weeks: number) => DoseEvent[]
+const simulate = M.simulate as (e: DoseEvent[], drug: string, weeks: number) => [number, number][]
+const amountBefore = M.amountBefore as (e: DoseEvent[], drug: string, t: number) => number
+const stack = M.layout as (steps: Step[]) => number
+const KEY = "glp1-plotter:v1"
+
+const mgFmt = (v: number) => (+v).toFixed(2).replace(/\.?0+$/, "")
+const shortName = (d: string) => DRUGS[d].name.replace(/ \(.*/, "")
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
+const valid = (v: unknown): v is Plan => !!v && typeof v === "object" && Array.isArray((v as Plan).steps) && (v as Plan).steps.length > 0 && (v as Plan).drug in DRUGS
+
+// Load: a glapp-style link wins, then a share link (#plan=…), then what this browser saved, then the example.
+function initialPlan(): { plan: Plan; notes: string[] } {
+  const link = M.fromGlappParams(new URLSearchParams(location.search))
+  if (link) return { plan: link.state as Plan, notes: link.notes }
+  const m = location.hash.match(/plan=([\w-]+)/)
+  if (m) {
+    try {
+      const v = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))))
+      if (valid(v)) return { plan: { ...structuredClone(EXAMPLE), ...v }, notes: [] }
+    } catch { /* fall through */ }
+  }
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) ?? "null")
+    if (valid(v)) return { plan: v, notes: [] }
+  } catch { /* fall through */ }
+  return { plan: structuredClone(EXAMPLE), notes: [] }
+}
+
+export default function App() {
+  const [{ plan: first, notes: firstNotes }] = useState(initialPlan)
+  const [plan, setPlan] = useState<Plan>(() => (first.drug === TIRZ ? first : { ...first, clicks: false }))
+  const [notes, setNotes] = useState<string[]>(firstNotes)
+  const [copied, setCopied] = useState(false)
+  const [plotWidth, setPlotWidth] = useState(0)
+
+  useEffect(() => { if (location.search || location.hash) history.replaceState(null, "", location.pathname) }, [])
+
+  // Every edit goes through here: copy, change, re-stack the weeks, recompute mg from clicks.
+  const update = (fn: (p: Plan) => void) => setPlan(prev => {
+    const p = structuredClone(prev)
+    fn(p)
+    const total = stack(p.steps)
+    if (total > p.weeks) p.weeks = total
+    if (p.clicks) p.steps.forEach(s => { s.dose = M.clicksToMg(s.clicks ?? 0, p.pens[s.pen ?? 0].strength) })
+    return p
+  })
+
+  const calc = useMemo(() => {
+    const p = structuredClone(plan)
+    stack(p.steps)
+    const perStep = p.steps.map(s => doseEvents(s, p.freq, p.weeks))
+    const events = perStep.flat().sort((a, b) => a.t - b.t)
+    const pts = simulate(events, p.drug, p.weeks)
+    const start = new Date(p.start + "T00:00")
+    const today = isNaN(+start) ? null : (Date.now() - +start) / 864e5
+    return { steps: p.steps, perStep, events, pts, today }
+  }, [plan])
+
+  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(plan)) } catch { /* private mode */ } }, [plan])
+
+  const dateAt = (day: number) => { const d = new Date(plan.start + "T00:00"); if (isNaN(+d)) return null; d.setDate(d.getDate() + Math.floor(day)); return d }
+  const dayLabel = (day: number, long = false) => dateAt(day)?.toLocaleDateString(undefined, long ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short" }) ?? `Day ${Math.floor(day)}`
+
+  const { steps, perStep, events, pts, today } = calc
+  const end = plan.weeks * 7
+  const clicksAllowed = plan.drug === TIRZ
+  const penCap = PEN_CLICKS + (plan.gold ? CLICKS : 0)
+  const next = today == null ? undefined : events.find(e => e.t >= Math.floor(today))
+  const nextStep = next && steps[perStep.findIndex(l => l.includes(next))]
+  const peak = pts.reduce((m, p) => (p[1] > m[1] ? p : m), [0, 0])
+  const firstOfPen = plan.clicks ? plan.pens.map((_, pi) => steps.find(s => s.pen === pi)) : []
+  const penStarts = firstOfPen.slice(1).filter(Boolean) as Step[]
+
+  function setClicks(on: boolean) {
+    if (on === plan.clicks || (on && !clicksAllowed)) return
+    const msg: string[] = []
+    update(p => {
+      if (on) {
+        if (!p.pens.length || p.steps.some(s => s.pen == null || !p.pens[s.pen])) {
+          const max = Math.max(...p.steps.map(s => s.dose)), str = STRENGTHS.find(v => v >= max) ?? 15
+          p.pens = [{ strength: str }]; p.steps.forEach(s => { s.pen = 0 })
+          msg.push(`All steps are on one ${str} mg pen. If it runs out, change a pen's strength or add a pen.`)
+        }
+        p.steps.forEach((s, i) => {
+          const str = p.pens[s.pen!].strength, before = s.dose
+          s.clicks = M.toClicks(s.dose, str)
+          const after = M.clicksToMg(s.clicks!, str)
+          if (Math.abs(after - before) > 1e-6) msg.push(`Step ${i + 1}: ${mgFmt(before)} mg can't be dialled exactly on a ${str} mg pen, so it's now ${s.clicks} clicks = ${mgFmt(after)} mg.`)
+        })
+        p.steps.sort((a, b) => a.pen! - b.pen!)
+      }
+      p.clicks = on
+    })
+    setNotes(msg)
+  }
+
+  async function share() {
+    const json = JSON.stringify({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, weeks, pen, clicks }) => ({ dose, weeks, pen, clicks })) })
+    const url = location.origin + location.pathname + "#plan=" + btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { prompt("Copy this link:", url) }
+  }
+
+  const summary = [shortName(plan.drug), plan.clicks ? plural(plan.pens.length, "pen") : null, `${plan.weeks} weeks`].filter(Boolean).join(" · ")
+  const weekSpan = (a: number, b: number) => (a === b ? `Week ${a}` : `Weeks ${a}–${b}`)
+
+  // ---- One step as a table row; clicks mode gets − / slider / +, mg mode a number field.
+  function stepRow(i: number) {
+    const s = steps[i], n = perStep[i].length
+    const removable = steps.length > 1 && !(plan.clicks && steps.filter(x => x.pen === s.pen).length === 1)
+    const setClicksTo = (c: number) => update(p => { p.steps[i].clicks = Math.min(CLICKS, Math.max(0, c)) })
+    return (
+      <TableRow key={i} className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto_82px_28px] max-sm:items-center max-sm:gap-x-4 max-sm:gap-y-3 max-sm:py-4 max-sm:*:p-0">
+        <TableCell>
+          <div>Step {i + 1}</div>
+          <div className="text-xs text-muted-foreground">{s.from === s.to ? `Wk ${s.from}` : `Wk ${s.from}–${s.to}`} · {s.dose > 0 ? `${n}×` : "pause"}</div>
+        </TableCell>
+        <TableCell className="max-sm:col-span-4 max-sm:col-start-1 max-sm:row-start-2">
+          {plan.clicks ? (
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Step ${i + 1}: one click less`} onClick={() => setClicksTo((s.clicks ?? 0) - 1)}><Minus /></Button>
+              <Slider className="min-w-24" min={0} max={CLICKS} step={1} value={[s.clicks ?? 0]} onValueChange={([v]) => setClicksTo(v)} aria-label={`Step ${i + 1} clicks per dose`} />
+              <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Step ${i + 1}: one click more`} onClick={() => setClicksTo((s.clicks ?? 0) + 1)}><Plus /></Button>
+            </div>
+          ) : (
+            <Input type="number" min={0} step={0.05} className="w-28 text-right" defaultValue={mgFmt(s.dose)} aria-label={`Step ${i + 1} dose in mg`}
+              onChange={e => { const v = +e.target.value; if (v >= 0) update(p => { p.steps[i].dose = v }) }} />
+          )}
+        </TableCell>
+        <TableCell className="text-right">
+          {plan.clicks
+            ? <><div className="font-semibold">{s.clicks} cl</div><div className="text-xs text-muted-foreground">{s.clicks ? `${mgFmt(s.dose)} mg` : "pause"}</div></>
+            : <><div className="font-semibold">{s.dose > 0 ? `${n}×` : "pause"}</div><div className="text-xs text-muted-foreground">{s.dose > 0 ? `${mgFmt(s.dose * n)} mg` : ""}</div></>}
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center justify-center gap-2">
+            <Input type="number" min={1} className="w-14 text-center pointer-coarse:h-9" value={s.weeks} aria-label={`Step ${i + 1} length in weeks`}
+              onChange={e => { const v = Math.round(+e.target.value); if (v >= 1) update(p => { p.steps[i].weeks = v }) }} />
+            <span className="text-xs text-muted-foreground sm:hidden" aria-hidden="true">wk</span>
+          </div>
+        </TableCell>
+        <TableCell>
+          {removable && <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove step ${i + 1}`} onClick={() => update(p => { p.steps.splice(i, 1) })}><X /></Button>}
+        </TableCell>
+      </TableRow>
+    )
+  }
+
+  function stepTable(indices: number[]) {
+    return (
+      <div className="[&_[data-slot=table-container]]:overflow-visible">
+      <Table className="table-fixed max-sm:block max-sm:[&>tbody]:block">
+        <TableHeader className="max-sm:hidden">
+          <TableRow>
+            <TableHead className="w-28">Step</TableHead>
+            <TableHead>{plan.clicks ? "Clicks per dose" : "Dose (mg)"}</TableHead>
+            <TableHead className="w-24 text-right">{plan.clicks ? "Dose" : "Doses"}</TableHead>
+            <TableHead className="w-24 text-center">Weeks</TableHead>
+            <TableHead className="w-14"><span className="sr-only">Remove</span></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>{indices.map(stepRow)}</TableBody>
+      </Table>
+      </div>
+    )
+  }
+
+  // ---- Chart
+  const chartConfig = { mg: { label: "In body", color: "var(--chart-1)" } } satisfies ChartConfig
+  const data = pts.map(([t, v]) => ({ t, mg: +v.toFixed(3) }))
+  const tickEvery = 7 * Math.max(1, Math.ceil(plan.weeks / 8))
+  const ticks = Array.from({ length: Math.floor(end / tickEvery) + 1 }, (_, k) => k * tickEvery)
+  const showToday = today != null && today >= 0 && today <= end
+  const yStep = peak[1] > 8 ? 4 : peak[1] > 4 ? 2 : 1, yMax = Math.max(yStep, Math.ceil(peak[1] / yStep) * yStep)
+  const yTicks = Array.from({ length: yMax / yStep + 1 }, (_, k) => k * yStep)
+
+  // ---- Dose rows
+  const doseRows = steps.flatMap((s, i) => perStep[i].map(e => ({ e, s }))).sort((a, b) => a.e.t - b.e.t)
+  const totalMg = events.reduce((n, e) => n + e.dose, 0)
+  const totalClicks = plan.clicks ? doseRows.reduce((n, r) => n + (r.s.clicks ?? 0), 0) : 0
+
+  return (
+    <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-4 md:px-12 md:py-8">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-baseline gap-4">
+          <h1 className="text-2xl font-semibold tracking-tight">GLP-1 plotter</h1>
+          <span className="text-xs text-muted-foreground">{summary}</span>
+        </div>
+        <div className="flex gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild><Button variant="outline">Reset to example</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Replace your plan with the example?</AlertDialogTitle>
+                <AlertDialogDescription>Your current plan will be lost.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setNotes([]); setPlan(structuredClone(EXAMPLE)) }}>Replace</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button onClick={share}><Link2 />{copied ? "Link copied" : "Copy share link"}</Button>
+        </div>
+      </header>
+
+      {notes.length > 0 && (
+        <Alert>
+          <AlertDescription className="flex items-start justify-between gap-4">
+            <div className="space-y-1">{notes.map(n => <p key={n}>{n}</p>)}</div>
+            <Button variant="ghost" size="icon" aria-label="Dismiss message" onClick={() => setNotes([])}><X /></Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card>
+        <CardContent className="grid grid-cols-2 items-end gap-4 sm:flex sm:flex-wrap sm:gap-6">
+          <Field className="col-span-2 sm:w-56">
+            <FieldLabel>Medication</FieldLabel>
+            <Select value={plan.drug} onValueChange={v => update(p => { p.drug = v; if (v !== TIRZ) p.clicks = false })}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{Object.entries(DRUGS).map(([k, v]) => <SelectItem key={k} value={k}>{v.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field className="col-span-2 sm:w-40">
+            <FieldLabel htmlFor="start">Start date</FieldLabel>
+            <Input id="start" type="date" value={plan.start} onChange={e => update(p => { p.start = e.target.value })} />
+          </Field>
+          <Field className="sm:w-32">
+            <FieldLabel htmlFor="freq">Dose every (days)</FieldLabel>
+            <Input id="freq" type="number" min={0.5} step={0.5} defaultValue={plan.freq} onChange={e => { const v = +e.target.value; if (v >= 0.5) update(p => { p.freq = v }) }} />
+          </Field>
+          <Field className="sm:w-32">
+            <FieldLabel htmlFor="len">Chart length (weeks)</FieldLabel>
+            <Input id="len" type="number" min={1} max={104} value={plan.weeks} onChange={e => { const v = Math.round(+e.target.value); if (v >= 1) update(p => { p.weeks = v }) }} />
+          </Field>
+          <div className="hidden grow sm:block" />
+          <Field className="col-span-2 sm:w-auto">
+            <FieldLabel>Enter doses as</FieldLabel>
+            <ToggleGroup className="max-sm:w-full" type="single" variant="outline" spacing={0} value={plan.clicks ? "clicks" : "mg"} onValueChange={v => v && setClicks(v === "clicks")}>
+              <ToggleGroupItem value="mg" className="max-sm:flex-1 sm:w-24">mg</ToggleGroupItem>
+              <ToggleGroupItem value="clicks" className="max-sm:flex-1 sm:w-24" disabled={!clicksAllowed} title={clicksAllowed ? undefined : "Pen clicks are for tirzepatide KwikPens"}>Pen clicks</ToggleGroupItem>
+            </ToggleGroup>
+          </Field>
+          {plan.clicks && (
+            <div className="col-span-2 flex h-9 items-center gap-2 pointer-coarse:h-11">
+              <Checkbox id="gold" checked={plan.gold} onCheckedChange={c => update(p => { p.gold = c === true })} />
+              <Label htmlFor="gold">Count golden dose</Label>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 xl:grid-cols-[minmax(0,680px)_minmax(0,1fr)]">
+        <section className="flex flex-col gap-6 xl:row-span-3" aria-label="Plan">
+          {!plan.clicks ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Steps</CardTitle>
+                <CardDescription>{weekSpan(1, steps[steps.length - 1].to!)} · {plural(events.length, "dose")}</CardDescription>
+              </CardHeader>
+              <CardContent>{stepTable(steps.map((_, i) => i))}</CardContent>
+              <CardFooter className="px-4 py-2">
+                <Button variant="ghost" className="px-2" onClick={() => update(p => { p.steps.push({ ...p.steps[p.steps.length - 1], weeks: 1 }) })}><Plus />Add step</Button>
+              </CardFooter>
+            </Card>
+          ) : (
+            <>
+              {plan.pens.map((pen, pi) => {
+                const own = steps.map((s, i) => [s, i] as const).filter(([s]) => s.pen === pi)
+                const used = own.reduce((n, [s, i]) => n + (s.clicks ?? 0) * perStep[i].length, 0)
+                const doses = own.reduce((n, [, i]) => n + perStep[i].length, 0)
+                const left = penCap - used
+                return (
+                  <Card key={pi}>
+                    <CardHeader>
+                      <CardTitle>Pen {pi + 1}</CardTitle>
+                      <CardDescription>{[`${pen.strength} mg KwikPen`, ...(own.length ? [weekSpan(own[0][0].from!, own[own.length - 1][0].to!), plural(doses, "dose")] : [])].map((t, k) => <span key={k}>{k ? " · " : ""}<span className="whitespace-nowrap">{t}</span></span>)}</CardDescription>
+                      <CardAction className="flex items-center gap-2">
+                        <Select value={String(pen.strength)} onValueChange={v => update(p => { p.pens[pi].strength = +v })}>
+                          <SelectTrigger aria-label={`Pen ${pi + 1} strength`}><SelectValue /></SelectTrigger>
+                          <SelectContent>{STRENGTHS.map(v => <SelectItem key={v} value={String(v)}>{v} mg</SelectItem>)}</SelectContent>
+                        </Select>
+                        {plan.pens.length > 1 && (
+                          <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove pen ${pi + 1}`} onClick={() => update(p => {
+                            p.steps = p.steps.filter(s => s.pen !== pi); p.steps.forEach(s => { if (s.pen! > pi) s.pen!-- }); p.pens.splice(pi, 1)
+                          })}><X /></Button>
+                        )}
+                      </CardAction>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                      <div className="flex flex-col gap-3">
+                        <Progress className={left < 0 ? "[&_[data-slot=progress-indicator]]:bg-destructive" : undefined} value={Math.min(100, (used / penCap) * 100)} aria-label={`Pen ${pi + 1} clicks used`} />
+                        <div className={`flex flex-wrap justify-between gap-2 text-xs ${left < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                          <span><span className="font-semibold text-foreground">{used}</span> / {penCap} clicks used</span>
+                          <span>{left >= 0 ? `${left} clicks left · ${mgFmt((left * pen.strength) / CLICKS)} mg` : `${-left} clicks over (${mgFmt((-left * pen.strength) / CLICKS)} mg short)`}</span>
+                        </div>
+                      </div>
+                      {stepTable(own.map(([, i]) => i))}
+                    </CardContent>
+                    <CardFooter className="px-4 py-2">
+                      <Button variant="ghost" className="px-2" onClick={() => update(p => {
+                        const mine = p.steps.filter(s => s.pen === pi), l = mine[mine.length - 1]
+                        p.steps.splice(p.steps.indexOf(l) + 1, 0, { ...l, weeks: 1 })
+                      })}><Plus />Add step</Button>
+                    </CardFooter>
+                  </Card>
+                )
+              })}
+              <Button variant="outline" onClick={() => update(p => {
+                const l = p.steps[p.steps.length - 1]
+                p.pens.push({ strength: p.pens[l.pen!].strength }); p.steps.push({ ...l, weeks: 1, pen: p.pens.length - 1 })
+              })}><Plus />Add pen</Button>
+            </>
+          )}
+        </section>
+
+        <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6" aria-label="Summary">
+          <Card>
+            <CardHeader>
+              <CardDescription>{today == null ? "Now" : today < 0 ? "Now · before start" : `Now · ${new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}`}</CardDescription>
+              <CardTitle className="text-2xl font-normal">{today == null ? "—" : `≈ ${(today < 0 ? 0 : amountBefore(events, plan.drug, today)).toFixed(1)} mg`}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardDescription>{!next ? "Next dose" : Math.floor(next.t) === Math.floor(today!) ? "Next dose · today" : `Next dose · ${dayLabel(next.t, true)}`}</CardDescription>
+              <CardTitle className="text-2xl font-normal">
+                {!next ? "None left" : plan.clicks ? <>{nextStep?.clicks} cl <span className="text-sm text-muted-foreground">{mgFmt(next.dose)} mg</span></> : `${mgFmt(next.dose)} mg`}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="max-sm:col-span-2">
+            <CardHeader>
+              <CardDescription>Highest · {dayLabel(peak[0], true)}</CardDescription>
+              <CardTitle className="text-2xl font-normal">≈ {peak[1].toFixed(1)} mg</CardTitle>
+            </CardHeader>
+          </Card>
+        </section>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider">Estimated amount in body (mg)</CardTitle>
+            <CardDescription>Sampled every 6 h{showToday ? " · amber line is today" : ""}{penStarts.length ? " · dashed lines are new pens" : ""}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={el => { if (el && Math.abs(el.clientWidth - 40 - plotWidth) > 4) setPlotWidth(el.clientWidth - 40) }}>
+              <AreaChart data={data} margin={{ top: 24, left: 0, right: 8 }}>
+                <CartesianGrid vertical={false} />
+                {steps.filter(s => (s.from! - 1) * 7 < end).map((s, i) => (
+                  <ReferenceArea key={i} x1={(s.from! - 1) * 7} x2={Math.min(s.to! * 7, end)} fill={i % 2 ? "transparent" : "var(--band)"} fillOpacity={1} ifOverflow="hidden"
+                    label={{ value: (Math.min(s.to! * 7, end) - (s.from! - 1) * 7) / end * plotWidth < 48 ? "" : s.dose > 0 ? (plan.clicks ? `${s.clicks} cl` : `${mgFmt(s.dose)} mg`) : "pause", position: "insideTopLeft", fill: "var(--muted-foreground)", fontSize: 13, dy: -20 }} />
+                ))}
+                <XAxis dataKey="t" type="number" domain={[0, end]} ticks={ticks} tickFormatter={v => dayLabel(v)} tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis width={32} tickLine={false} axisLine={false} domain={[0, yMax]} ticks={yTicks} />
+                <ChartTooltip content={<ChartTooltipContent indicator="line" labelFormatter={(_, p) => { const t = p?.[0]?.payload?.t as number; return `${dayLabel(t, true)} · day ${t}` }} formatter={v => `${Number(v ?? 0).toFixed(2)} mg`} />} />
+                <Area dataKey="mg" type="linear" stroke="var(--color-mg)" fill="var(--color-mg)" fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />
+                {penStarts.map(s => <ReferenceLine key={s.pen} x={(s.from! - 1) * 7} stroke="var(--marker)" strokeWidth={1.5} strokeDasharray="3 4" />)}
+                {showToday && <ReferenceLine x={today!} stroke="var(--today)" strokeWidth={2} />}
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+          <CardFooter className="text-xs text-muted-foreground">Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice.</CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider">Doses</CardTitle>
+            <CardDescription>{plural(events.length, "dose")}{plan.clicks ? ` · ${totalClicks} clicks` : ""} · {mgFmt(totalMg)} mg</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table className="text-xs [&_td]:py-3.5">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Week</TableHead>
+                  {plan.clicks && <><TableHead>Pen</TableHead><TableHead className="text-right">Clicks</TableHead></>}
+                  <TableHead className="text-right">Dose</TableHead>
+                  <TableHead className="text-right">In body before</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {doseRows.map(({ e, s }, k) => {
+                  const past = today != null && e.t < Math.floor(today), isNext = next === e
+                  return (
+                    <TableRow key={k} className={isNext ? "bg-[var(--today-soft)] hover:bg-[var(--today-soft)]" : past ? "text-muted-foreground" : undefined}>
+                      <TableCell className={isNext ? "font-semibold" : undefined}>{dayLabel(e.t, true)}{isNext && " · next"}</TableCell>
+                      <TableCell className="text-right">{Math.floor(e.t / 7) + 1}</TableCell>
+                      {plan.clicks && <><TableCell>{s.pen! + 1} · {plan.pens[s.pen!].strength} mg</TableCell><TableCell className="text-right">{s.clicks}</TableCell></>}
+                      <TableCell className="text-right">{mgFmt(e.dose)} mg</TableCell>
+                      <TableCell className="text-right">{amountBefore(events, plan.drug, e.t).toFixed(2)} mg</TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  )
+}

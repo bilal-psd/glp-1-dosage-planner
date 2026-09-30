@@ -2,7 +2,7 @@
 
 Single-page tool that plots the estimated amount of a GLP-1 medication in the body over time, for a titration plan made of steps (and, for tirzepatide, pens dialled by clicks).
 
-Current state: vanilla JS + ECharts 5.5.0 from cdnjs, no build step. `model.js` holds the maths and scheduling rules (pure ES module); `index.html` is the page and imports it. `test/model.test.mjs` pins the model — run `node --test` before and after any change. `options/` holds earlier redesign prototypes, not the live app. Serve over HTTP (`python3 -m http.server 5173`); ES modules don't load from `file://`. Hosted on GitHub Pages from `main` (repo root).
+Current state: vanilla JS + ECharts 5.5.0 from cdnjs, no build step. `model.js` holds the maths and scheduling rules (pure ES module); `index.html` is the page and imports it. `test/model.test.mjs` pins the model — run `node --test` before and after any change. `options/` holds earlier redesign prototypes, not the live app. `shadcn-src/` is a second version of the page built from shadcn/ui (React + Vite, same `model.js`); `cd shadcn-src && npm run build` writes it to `shadcn/`, which is committed and served at `/shadcn/`. Rebuild and commit `shadcn/` after changing `shadcn-src/`. Serve over HTTP (`python3 -m http.server 5173`); ES modules don't load from `file://`. Hosted on GitHub Pages from `main` (repo root).
 
 Look: dark mode only, Geist (one family), type sizes 13/16/24, spacing 8/12/16/24. Colour tokens are on `:root` in `index.html`: `--accent` (teal) is only for medication data (curve, pen meters, dose sliders); interactive chrome uses neutral `--action`. See PRODUCT.md for audience and goals.
 
