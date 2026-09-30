@@ -2,7 +2,9 @@
 
 Single-page tool that plots the estimated amount of a GLP-1 medication in the body over time, for a titration plan made of steps (and, for tirzepatide, pens dialled by clicks).
 
-Current state: everything lives in `index.html` (vanilla JS + ECharts 5.5.0 from cdnjs, no build step). It was built iteratively in a claude.ai chat and is the source of truth for behaviour.
+Current state: vanilla JS + ECharts 5.5.0 from cdnjs, no build step. `model.js` holds the maths and scheduling rules (pure ES module); `index.html` is the page and imports it. `test/model.test.mjs` pins the model — run `node --test` before and after any change. `options/` holds earlier redesign prototypes, not the live app. Serve over HTTP (`python3 -m http.server 5173`); ES modules don't load from `file://`. Hosted on GitHub Pages from `main` (repo root).
+
+Look: dark mode only, Geist (one family), type sizes 13/16/24, spacing 8/12/16/24. Colour tokens are on `:root` in `index.html`: `--accent` (teal) is only for medication data (curve, pen meters, dose sliders); interactive chrome uses neutral `--action`. See PRODUCT.md for audience and goals.
 
 ## Pharmacokinetic model (must stay identical)
 
@@ -35,9 +37,9 @@ Computation (all done in the browser at run time):
 ## UI decisions (all requested by the user)
 
 - One medication for the whole plan, plus one global "every N days" interval. Multiple medications, offset days and accumulate/compare modes were removed on purpose.
-- Dose input switch: "Dose (mg)" or "Pen clicks".
+- Dose input switch ("Enter doses as"): "mg" or "Pen clicks".
 - Pen clicks mode only for tirzepatide (KwikPen). One injection = 60 clicks = the pen's labelled strength, so `mg = clicks / 60 × strength`. Slider 0–60 with −/+ buttons; 0 = pause.
-- In clicks mode, pens are a level above steps. Each pen has a strength (2.5–15 mg), its own steps, "+ Add step to this pen", and a footer showing clicks and mg left. A pen always keeps at least one step.
+- In clicks mode, pens are a level above steps. Each pen has a strength (2.5–15 mg), its own steps, "+ Add step", and a meter plus footer showing clicks used and clicks/mg left (red when over capacity). A pen always keeps at least one step.
 - Pen capacity: 4 doses = 240 clicks. "Count golden dose" checkbox (off by default, applies to all pens) adds one extra dose → 300 clicks.
 - Changing a pen's strength keeps clicks and recomputes mg.
 - Each step header shows its week range and dose count, computed from actual dose events.
@@ -45,7 +47,7 @@ Computation (all done in the browser at run time):
 ## Persistence and loading
 
 - State is saved to `localStorage` key `glp1-plotter:v1` after every change.
-- Load order at page start: glapp-style query params (`medicationN`, `doseN`, `fromN`, `toN`, `frequencyN`, `start_date`, `length`) → saved state → built-in example. Gaps in a link become 0 mg pause steps. After loading, the page strips the query string.
+- Load order at page start: glapp-style query params (`medicationN`, `doseN`, `fromN`, `toN`, `frequencyN`, `start_date`, `length`) → share link (`#plan=` base64url JSON of the full state, made by "Copy share link") → saved state → built-in example. Gaps in a glapp link become 0 mg pause steps. After loading, the page strips the query string and hash.
 
 ## Working preferences
 
@@ -56,5 +58,4 @@ Computation (all done in the browser at run time):
 ## Ideas not yet built
 
 - Per-pen golden dose toggle.
-- Pen-change markers on the chart.
 - Supporting two medications at the same time (would need one step sequence per medication).
