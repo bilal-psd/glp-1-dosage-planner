@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GLP-1 plotter — replica (milestone 1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1d1b18;--mute:#6d675d;--line:#e2ddd2;--acc:#6e3b75;--grid:#eee9df;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15130f;--card:#1f1c17;--ink:#ece6da;--mute:#a39b8c;--line:#35302753;--acc:#c79bd0;--grid:#2b2720}}
+:root[data-theme="dark"]{--bg:#15130f;--card:#1f1c17;--ink:#ece6da;--mute:#a39b8c;--line:#35302753;--acc:#c79bd0;--grid:#2b2720}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Instrument Sans",system-ui,sans-serif}
+main{max-width:920px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}p.sub{color:var(--mute);margin:0 0 18px;max-width:65ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
+input,select{font:14px "JetBrains Mono",monospace;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
+input[type=number]{width:74px}
+.sched{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;padding:10px 0;border-top:1px dashed var(--line)}
+.sched:first-child{border-top:0}
+.sched .drug{grid-column:1/-1}
+button{font:600 13px "Instrument Sans",sans-serif;padding:7px 12px;border-radius:6px;border:1px solid var(--acc);background:transparent;color:var(--acc);cursor:pointer}
+button.x{border-color:var(--line);color:var(--mute)}
+#chart{width:100%;height:380px}
+.ev{overflow-x:auto;font:12px/1.6 "JetBrains Mono",monospace;color:var(--mute)}
+.ev b{color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--acc);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.seg button{border:0;border-radius:0;padding:7px 12px}
+.seg button[aria-checked="true"]{background:var(--acc);color:var(--card)}
+.chk{flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--ink);padding-bottom:6px}
+.chk input{width:auto}
+.seg.sm{margin:0}.seg.sm button{padding:4px 10px;font-size:12px}
+.stephead{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.stephead b{font-size:14px}.stephead small{color:var(--mute);font:12px "JetBrains Mono",monospace}
+#doseRow{padding:10px 0;border-bottom:1px solid var(--line)}
+.clk{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.clk .out{grid-column:1/-1;font:600 15px "JetBrains Mono",monospace}.clk .out span{color:var(--mute);font-weight:400}
+.clk input[type=range]{width:100%;accent-color:var(--acc);height:28px}
+.clk button{width:38px;height:34px;padding:0;font-size:18px}
+.ticks{grid-column:2;display:flex;justify-content:space-between;font:11px "JetBrains Mono",monospace;color:var(--mute);margin-top:-6px}
+.note{grid-column:1/-1;font-size:12px;color:var(--mute)}
+.pen{border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:10px 12px;margin:12px 0}
+.penhead{display:flex;align-items:end;gap:10px;flex-wrap:wrap;justify-content:space-between}
+.penhead b{font-size:15px}
+.penfoot{margin-top:8px;font:12px "JetBrains Mono",monospace;color:var(--mute)}
+.meter{height:6px;border-radius:3px;background:var(--grid);overflow:hidden;margin:4px 0}
+.meter i{display:block;height:100%;background:var(--acc)}
+.penfoot.over{color:#c2410c}.penfoot.over .meter i{background:#c2410c}
+.pen .addstep{margin-top:6px}
+#doseRow .note{grid-column:auto}
+#globalRow{padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:4px}
+</style></head>
+<body><main>
+<h1>GLP-1 plotter</h1>
+<p class="sub">Estimated medication in your body over time, using the same one-compartment model and drug constants as glapp.io's plotter. Week ranges are fixed so a 1-week step means exactly one dose. Your inputs are saved in this browser.</p>
+<div class="card"><div class="row">
+<label>Start date<input id="start" type="date"></label>
+<label>Length (weeks)<input id="len" type="number" min="1" max="104"></label>
+<label>Medication<select id="gDrug"></select></label>
+<label>Every (days)<input id="gFreq" type="number" min="1" step="0.5"></label>
+</div></div>
+<div class="card">
+<div class="row" id="doseRow"><div class="seg sm" role="radiogroup" aria-label="Dose input"><button id="inMg" role="radio">Dose (mg)</button><button id="inClicks" role="radio">Pen clicks</button></div><label class="chk" id="goldWrap"><input type="checkbox" id="gold"> Count golden dose (+60 clicks per pen)</label><span class="note" id="clickNote"></span></div>
+<div id="scheds"></div><button id="add">+ Add step</button><button id="addPen">+ Add pen</button></div>
+<div class="card"><div id="chart"></div></div>
+<div class="card ev" id="events"></div>
+<p style="text-align:right"><button class="x" id="reset">Reset to example</button></p>
+</main>
+<script>
+const DRUGS={"semaglutide-injection":{halfLife:7,bioavailability:.89,volumeOfDistribution:12.5,tmax:1.5,name:"Semaglutide (Injection)"},"semaglutide-oral":{halfLife:7,bioavailability:.01,volumeOfDistribution:12.5,tmax:.042,name:"Semaglutide (Oral)"},"tirzepatide-injection":{halfLife:5,bioavailability:.8,volumeOfDistribution:10.3,tmax:1,name:"Tirzepatide (Injection)"},"retatrutide-injection":{halfLife:6,bioavailability:.8,volumeOfDistribution:10,tmax:1.5,name:"Retatrutide (Injection)"}};
+// ---- Model (same maths as glapp): Bateman curve per dose, ka solved from Tmax, summed, reported as mg in body (× Vd).
+function solveKa(tmax,ke){let ka=2.5/tmax;for(let n=0;n<20;n++){const d=ka-ke;if(Math.abs(d)<1e-10)break;const L=Math.log(ka/ke),f=L/d-tmax,fp=(1/ka-L/d)/d;if(Math.abs(fp)<1e-10)break;const nx=ka-f/fp;if(nx<=ke||nx<=0){ka=ke*2;continue}if(Math.abs(nx-ka)<1e-10)break;ka=nx}return ka}
+function conc(dose,t,p){if(t<0)return 0;const ke=Math.LN2/p.halfLife,ka=solveKa(p.tmax,ke),d=ka-ke;if(Math.abs(d)<1e-10)return p.bioavailability*dose*ka/p.volumeOfDistribution*t*Math.exp(-ke*t);return Math.max(0,p.bioavailability*dose*ka/(p.volumeOfDistribution*d)*(Math.exp(-ke*t)-Math.exp(-ka*t)))}
+// Dose days for a step: from the first day of its first week, every freq days, stopping before the week after its last week.
+function doseEvents(s,freq,weeks){const out=[],end=weeks*7,stop=s.to*7;if(s.dose>0)for(let t=(s.from-1)*7;t<stop&&t<=end;t+=freq)out.push({t,dose:s.dose});return out}
+function simulate(events,drug,weeks){const p=DRUGS[drug],pts=[];for(let k=0;k<=weeks*28;k++){const t=k/4;let c=0;for(const e of events)if(e.t<=t)c+=conc(e.dose,t-e.t,p);pts.push([t,c*p.volumeOfDistribution])}return pts}
+
+const TIRZ="tirzepatide-injection",CLICKS=60,PEN_CLICKS=240,STRENGTHS=[2.5,5,7.5,10,12.5,15],KEY="glp1-plotter:v1";
+const EXAMPLE={start:"2026-08-01",weeks:12,drug:TIRZ,freq:7,clicks:false,gold:false,pens:[],steps:[{dose:2.5,weeks:7},{dose:3.7,weeks:1},{dose:3.25,weeks:1}]};
+const $=id=>document.getElementById(id);
+const mgFmt=v=>(+v).toFixed(2).replace(/\.?0+$/,"");
+
+// ---- Load: a glapp-style link in the URL wins, then what this browser saved, then the example.
+function fromUrl(){const q=new URLSearchParams(location.search);if(!q.has("medication1"))return null;
+ const rows=[];for(let i=1;q.has("medication"+i);i++)rows.push({drug:q.get("medication"+i),dose:+q.get("dose"+i),from:+q.get("from"+i),to:+q.get("to"+i),freq:+q.get("frequency"+i)});
+ rows.sort((a,b)=>a.from-b.from);const steps=[];let next=1;
+ for(const r of rows){if(r.from>next)steps.push({dose:0,weeks:r.from-next});steps.push({dose:r.dose,weeks:Math.max(1,r.to-Math.max(r.from,next)+1)});next=Math.max(next,r.to+1)}
+ return {...EXAMPLE,start:q.get("start_date")||EXAMPLE.start,weeks:+(q.get("length")||12),drug:rows[0].drug in DRUGS?rows[0].drug:TIRZ,freq:rows[0].freq||7,steps}}
+function fromStorage(){try{const v=JSON.parse(localStorage.getItem(KEY));return v&&Array.isArray(v.steps)&&v.steps.length?v:null}catch{return null}}
+let state=structuredClone(fromUrl()||fromStorage()||EXAMPLE);
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch{}}
+
+const clicksAllowed=()=>state.drug===TIRZ;
+const penCap=()=>PEN_CLICKS+(state.gold?CLICKS:0);   // golden dose: the extra full dose most pens contain, not guaranteed
+const penOf=s=>state.pens[s.pen];
+const toClicks=(mg,str)=>Math.min(CLICKS,Math.max(0,Math.round(mg/str*CLICKS)));
+function layout(){let w=1;state.steps.forEach(s=>{s.weeks=Math.max(1,Math.round(s.weeks)||1);s.from=w;s.to=w+s.weeks-1;w+=s.weeks})}
+function syncDoses(){if(state.clicks)state.steps.forEach(s=>{s.dose=+(s.clicks*penOf(s).strength/CLICKS).toFixed(4)})}
+function setClicks(on){
+ if(on&&!clicksAllowed())return;
+ if(on){if(!state.pens.length||state.steps.some(s=>s.pen==null||!state.pens[s.pen])){const max=Math.max(...state.steps.map(s=>s.dose));state.pens=[{strength:STRENGTHS.find(v=>v>=max)||15}];state.steps.forEach(s=>s.pen=0)}
+  state.steps.forEach(s=>s.clicks=toClicks(s.dose,penOf(s).strength));state.steps.sort((a,b)=>a.pen-b.pen);layout()}
+ state.clicks=on;syncDoses();render();draw()}
+
+// ---- Top controls
+$("gDrug").innerHTML=Object.entries(DRUGS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join("");
+function fillTop(){$("start").value=state.start;$("len").value=state.weeks;$("gDrug").value=state.drug;$("gFreq").value=state.freq;$("gold").checked=state.gold}
+$("start").addEventListener("input",e=>{state.start=e.target.value;draw()});
+$("len").addEventListener("input",e=>{state.weeks=Math.max(1,+e.target.value||1);draw()});
+$("gDrug").addEventListener("input",e=>{state.drug=e.target.value;if(!clicksAllowed())state.clicks=false;render();draw()});
+$("gFreq").addEventListener("input",e=>{state.freq=Math.max(0.5,+e.target.value||0.5);draw()});
+$("gold").addEventListener("change",e=>{state.gold=e.target.checked;draw()});
+$("inMg").onclick=()=>setClicks(false);$("inClicks").onclick=()=>setClicks(true);
+$("add").onclick=()=>{const l=state.steps[state.steps.length-1];state.steps.push({...l,weeks:1});layout();render();draw()};
+$("addPen").onclick=()=>{const l=state.steps[state.steps.length-1],p=state.pens.length;state.pens.push({strength:penOf(l).strength});state.steps.push({...l,weeks:1,pen:p});layout();syncDoses();render();draw()};
+$("reset").onclick=()=>{state=structuredClone(EXAMPLE);layout();fillTop();render();draw()};
+
+// ---- Steps and pens
+function stepEl(s,i){const d=document.createElement("div");d.className="sched";
+ const doseField=state.clicks
+  ?`<div class="clk"><div class="out" data-out></div>
+<button class="x" data-step="-1" aria-label="One click less">−</button><input type="range" min="0" max="${CLICKS}" step="1" data-k="clicks" value="${s.clicks}" aria-label="Clicks"><button class="x" data-step="1" aria-label="One click more">+</button>
+<div class="ticks"><span>0</span><span>15</span><span>30</span><span>45</span><span>60</span></div></div>`
+  :`<label>Dose mg<input type="number" min="0" step="0.05" data-k="dose" value="${mgFmt(s.dose)}"></label>`;
+ d.innerHTML=`<div class="stephead"><b>Step ${i+1}</b><small data-sum data-i="${i}"></small></div>${doseField}<label>Weeks<input type="number" min="1" data-k="weeks" value="${s.weeks}"></label>`;
+ const lastInPen=state.clicks&&state.steps.filter(x=>x.pen===s.pen).length===1;
+ if(state.steps.length>1&&!lastInPen){const rm=document.createElement("button");rm.className="x";rm.textContent="Remove step";rm.onclick=()=>{state.steps.splice(i,1);layout();render();draw()};d.appendChild(rm)}
+ d.querySelectorAll("[data-k]").forEach(el=>el.addEventListener("input",()=>{const k=el.dataset.k;s[k]=+el.value||0;if(k==="weeks")layout();if(k==="clicks")syncDoses();updOut(d,s);draw()}));
+ d.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{s.clicks=Math.min(CLICKS,Math.max(0,s.clicks+ +b.dataset.step));d.querySelector("[data-k=clicks]").value=s.clicks;syncDoses();updOut(d,s);draw()});
+ updOut(d,s);return d}
+function updOut(d,s){const o=d.querySelector("[data-out]");if(o)o.innerHTML=s.clicks?`${s.clicks} clicks <span>= ${mgFmt(s.dose)} mg</span>`:"0 clicks <span>= pause</span>"}
+function render(){
+ $("inMg").setAttribute("aria-checked",!state.clicks);$("inClicks").setAttribute("aria-checked",state.clicks);
+ $("inClicks").disabled=!clicksAllowed();$("clickNote").textContent=clicksAllowed()?"":"Pen clicks are for tirzepatide KwikPens.";
+ $("goldWrap").style.display=state.clicks?"":"none";
+ $("add").style.display=state.clicks?"none":"";$("addPen").style.display=state.clicks?"":"none";
+ const box=$("scheds");box.innerHTML="";
+ if(!state.clicks){state.steps.forEach((s,i)=>box.appendChild(stepEl(s,i)));return}
+ state.pens.forEach((p,pi)=>{const g=document.createElement("div");g.className="pen";
+  g.innerHTML=`<div class="penhead"><b>Pen ${pi+1}</b><label>Strength<select data-pen>${STRENGTHS.map(v=>`<option value="${v}" ${v===p.strength?"selected":""}>${v} mg KwikPen</option>`).join("")}</select></label></div>`;
+  g.querySelector("[data-pen]").onchange=e=>{p.strength=+e.target.value;syncDoses();render();draw()};
+  if(state.pens.length>1){const rm=document.createElement("button");rm.className="x";rm.textContent="Remove pen";
+   rm.onclick=()=>{state.steps=state.steps.filter(s=>s.pen!==pi);state.steps.forEach(s=>{if(s.pen>pi)s.pen--});state.pens.splice(pi,1);layout();render();draw()};g.querySelector(".penhead").appendChild(rm)}
+  state.steps.forEach((s,i)=>{if(s.pen===pi)g.appendChild(stepEl(s,i))});
+  const add=document.createElement("button");add.className="addstep";add.textContent="+ Add step to this pen";
+  add.onclick=()=>{const own=state.steps.filter(s=>s.pen===pi),l=own[own.length-1];state.steps.splice(state.steps.indexOf(l)+1,0,{...l,weeks:1});layout();render();draw()};
+  g.appendChild(add);const foot=document.createElement("div");foot.className="penfoot";foot.dataset.penfoot=pi;g.appendChild(foot);box.appendChild(g)})}
+
+// ---- Chart
+const COLOR="#6e3b75";
+const chart=echarts.init($("chart"));addEventListener("resize",()=>chart.resize());
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function draw(){layout();const total=state.steps[state.steps.length-1].to;if(total>state.weeks){state.weeks=total;$("len").value=total}
+ const perStep=state.steps.map(s=>doseEvents(s,state.freq,state.weeks)),events=perStep.flat(),acc=css("--acc")||COLOR;
+ chart.setOption({backgroundColor:"transparent",animation:false,grid:{left:8,right:12,top:20,bottom:50,containLabel:true},
+  tooltip:{trigger:"axis",confine:true,valueFormatter:v=>v.toFixed(2)+" mg"},
+  xAxis:{type:"value",name:"Days from start",nameLocation:"middle",nameGap:28,nameTextStyle:{color:css("--mute")},axisLabel:{color:css("--mute")},splitLine:{lineStyle:{color:css("--grid"),type:"dashed"}},max:state.weeks*7},
+  yAxis:{type:"value",axisLabel:{color:css("--mute"),formatter:v=>v.toFixed(1)+" mg"},splitLine:{lineStyle:{color:css("--grid"),type:"dashed"}}},
+  dataZoom:state.weeks>12?[{type:"slider",bottom:6,height:20},{type:"inside"}]:[],
+  series:[{type:"line",name:DRUGS[state.drug].name,data:simulate(events,state.drug,state.weeks),smooth:true,showSymbol:false,lineStyle:{width:2,color:acc},itemStyle:{color:acc},areaStyle:{color:acc,opacity:.15},
+   markLine:{symbol:"none",silent:true,label:{show:false},lineStyle:{type:"dashed",color:css("--line"),width:1},data:[...new Set(events.map(e=>e.t))].map(x=>({xAxis:x}))}}]},true);
+ document.querySelectorAll("[data-sum]").forEach(el=>{const i=+el.dataset.i,s=state.steps[i];if(!s)return;const n=perStep[i].length;el.textContent=(s.from===s.to?`week ${s.from}`:`weeks ${s.from}–${s.to}`)+(s.dose>0?` · ${n} dose${n===1?"":"s"}`:" · pause")});
+ if(state.clicks)state.pens.forEach((p,pi)=>{const el=document.querySelector(`[data-penfoot="${pi}"]`);if(!el)return;
+  const used=state.steps.reduce((n,s,i)=>s.pen===pi?n+s.clicks*perStep[i].length:n,0),cap=penCap(),left=cap-used;
+  el.className="penfoot"+(left<0?" over":"");
+  el.innerHTML=`<div class="meter"><i style="width:${Math.min(100,Math.max(0,used/cap*100))}%"></i></div>`+(left>=0?`${left} of ${cap} clicks left${state.gold?" (incl. golden dose)":""} · ${mgFmt(left*p.strength/CLICKS)} mg`:`${-left} clicks more than the pen holds (${mgFmt(-left*p.strength/CLICKS)} mg short)`)});
+ $("events").innerHTML="<b>Dose events (day: mg)</b><br>"+state.steps.map((s,i)=>`Step ${i+1}: `+(perStep[i].map(e=>`${e.t}: ${mgFmt(e.dose)}`).join(" · ")||"none")).join("<br>");
+ save()}
+if(!clicksAllowed())state.clicks=false;
+layout();fillTop();render();draw();
+// Once a link has been loaded and saved, drop its query string so a reload uses the saved (possibly edited) plan.
+if(location.search)try{history.replaceState(null,"",location.pathname+location.hash)}catch{}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
+</script></body></html>
