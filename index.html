@@ -61,7 +61,7 @@ header .actions{display:flex;gap:8px}
 #gDrug{width:240px}#start{width:176px}#gFreq,#len{width:136px}
 
 /* Layout: plan on the left, results on the right; on narrow screens results come first */
-.cols{display:grid;grid-template-columns:600px minmax(0,1fr);grid-template-rows:auto auto 1fr;grid-template-areas:"plan stats" "plan chart" "plan doses";gap:var(--gap);align-items:start}
+.cols{display:grid;grid-template-columns:680px minmax(0,1fr);grid-template-rows:auto auto 1fr;grid-template-areas:"plan stats" "plan chart" "plan doses";gap:var(--gap);align-items:start}
 #plan{grid-area:plan;display:flex;flex-direction:column;gap:var(--gap)}
 #stats{grid-area:stats}#chartCard{grid-area:chart}#doses{grid-area:doses}
 
@@ -82,19 +82,20 @@ header .actions{display:flex;gap:8px}
 .penfoot strong{color:var(--ink);font-weight:600}
 .over .meter i b{background:var(--danger)}.over .penfoot{color:var(--danger)}.over .penfoot strong{color:var(--danger)}
 
-.row{display:grid;grid-template-columns:96px 44px minmax(0,1fr) 44px 80px 64px 44px;grid-template-areas:"name minus range plus out weeks rm";column-gap:8px;align-items:center;padding:16px var(--pad);border-bottom:1px solid var(--line2)}
+.row{display:grid;grid-template-columns:88px minmax(0,1fr) 72px 64px 44px;grid-template-areas:"name ctl out weeks rm";column-gap:24px;align-items:center;padding:16px var(--pad);border-bottom:1px solid var(--line2)}
 .row.colhead{padding-top:12px;padding-bottom:12px}
 .row .name{grid-area:name;display:flex;flex-direction:column;line-height:20px;min-width:0}
-.row .minus{grid-area:minus}.row .plus{grid-area:plus}.row .range{grid-area:range}
-.row .dose{grid-column:minus-start/plus-end;display:flex;align-items:center;gap:8px}
+.row .ctl{grid-area:ctl;display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;align-items:center}
+.row .dose{grid-area:ctl;display:flex;align-items:center;gap:8px}
 .row .dose input{width:120px;text-align:right}
 .row .out{grid-area:out;display:flex;flex-direction:column;align-items:flex-end;line-height:20px;white-space:nowrap}
 .row .out b{font-weight:600}
 .row .wk{grid-area:weeks;display:flex;align-items:center;gap:8px}
 .row .wk .meta{display:none}
 .row .weeks{width:64px;text-align:right}
-.row .rm{grid-area:rm}
-.colhead .c-dose{grid-column:minus-start/plus-end}.colhead .c-out{grid-area:out;text-align:right}.colhead .c-weeks{grid-area:weeks;text-align:right}
+.row .rm{grid-area:rm;margin-right:-12px}
+.row .wk{justify-self:end}
+.colhead .c-dose{grid-area:ctl}.colhead .c-out{grid-area:out;text-align:right}.colhead .c-weeks{grid-area:weeks;text-align:right}
 .addrow{padding:8px 16px}
 
 /* Results */
@@ -141,8 +142,7 @@ tr.newpen td{border-top:1px dashed var(--marker)}
  .headrow{flex-wrap:wrap;row-gap:0}
  .headrow [data-span]{order:5;flex-basis:100%}
  .row .wk .meta{display:inline}
- .row{grid-template-columns:44px minmax(0,1fr) auto auto 44px;grid-template-areas:"name name out weeks rm" "minus range range range plus";row-gap:12px}
- .row .out{margin-right:8px}
+ .row{grid-template-columns:minmax(0,1fr) auto auto 44px;grid-template-areas:"name out weeks rm" "ctl ctl ctl ctl";column-gap:16px;row-gap:12px}
  .row.colhead{display:none}
  .row .dose input{flex:1;width:auto}
 }
@@ -252,9 +252,9 @@ function stepRow(s,i){
  const d=document.createElement("div");d.className="row";d.dataset.i=i;
  const removable=state.steps.length>1&&!(state.clicks&&state.steps.filter(x=>x.pen===s.pen).length===1);
  const dose=state.clicks
-  ?`<button class="icon boxed minus" data-step="-1" aria-label="Step ${i+1}: one click less">${svg("minus")}</button>
-    <input class="range" type="range" min="0" max="${CLICKS}" step="1" data-k="clicks" value="${s.clicks}" aria-label="Step ${i+1} clicks per dose">
-    <button class="icon boxed plus" data-step="1" aria-label="Step ${i+1}: one click more">${svg("plus")}</button>`
+  ?`<div class="ctl"><button class="icon boxed" data-step="-1" aria-label="Step ${i+1}: one click less">${svg("minus")}</button>
+    <input type="range" min="0" max="${CLICKS}" step="1" data-k="clicks" value="${s.clicks}" aria-label="Step ${i+1} clicks per dose">
+    <button class="icon boxed" data-step="1" aria-label="Step ${i+1}: one click more">${svg("plus")}</button></div>`
   :`<label class="dose"><input class="input" type="number" min="0" step="0.05" inputmode="decimal" data-k="dose" value="${mgFmt(s.dose)}" aria-label="Step ${i+1} dose in mg"><span class="meta">mg per dose</span></label>`;
  d.innerHTML=`<div class="name"><span>Step ${i+1}</span><span class="meta" data-sum></span></div>${dose}
   <div class="out"><b data-o1></b><span class="meta" data-o2></span></div>
