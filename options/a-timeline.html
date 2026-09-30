@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Option A: Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f1f4f2;--ink:#15232b;--muted:#56656c;--rule:#d3dad7;--line:#0a6a6e;--field:#ffffff;
+ --r1:#cfe6e4;--r2:#9fcfcb;--r3:#67b1ad;--r4:#2e8c8b;--r5:#0a6a6e;--on-dark:#ffffff;
+ --vz-line:var(--line);--vz-grid:var(--rule);--vz-muted:var(--muted);--vz-surface:var(--paper);--vz-tip-bg:var(--ink);--vz-tip-ink:var(--paper);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#0f1a1d;--ink:#e3ecea;--muted:#93a4a6;--rule:#27363a;--line:#5cc3be;--field:#16252a;
+ --r1:#173236;--r2:#1d4a4d;--r3:#256664;--r4:#2f8581;--r5:#4fafa9;--on-dark:#0f1a1d;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:1rem/1.5 "Schibsted Grotesk",system-ui,sans-serif}
+.vz,.band,.weeks,.editor input{font-variant-numeric:tabular-nums}
+main{max-width:1080px;margin:0 auto;padding:28px 16px 64px}
+.brand{font-weight:700;font-size:1rem;margin:0 0 28px;color:var(--muted)}
+/* The settings are one sentence you edit in place */
+.sentence{font-size:1.25rem;line-height:2.1;margin:0 0 8px;max-width:48rem}
+.sentence select,.sentence input{font:inherit;font-weight:700;color:var(--ink);background:transparent;border:0;border-bottom:2px solid var(--rule);padding:0 2px;border-radius:0}
+.sentence select:focus,.sentence input:focus{outline:none;border-bottom-color:var(--line)}
+.sentence input[type=number]{width:3ch;text-align:center;-moz-appearance:textfield}
+.sentence input::-webkit-inner-spin-button{display:none}
+h1{font-size:clamp(2rem,5vw,3.25rem);line-height:1.05;font-weight:800;letter-spacing:-.02em;margin:36px 0 10px;max-width:22ch}
+.peak{color:var(--muted);margin:0 0 28px}
+.peak b{color:var(--ink);font-weight:700}
+/* chart + plan strip share one horizontal scale */
+.scroller{overflow-x:auto;padding-bottom:8px}
+.track{min-width:calc(var(--weeks)*52px)}
+#chart{margin:0 54px 40px 0}
+.strip{display:flex;gap:2px;height:84px}
+.band{flex:var(--w) 1 0;min-width:0;border:0;border-radius:4px;padding:10px 10px;text-align:left;font:inherit;color:var(--ink);background:var(--fill);cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+.band.dark{color:var(--on-dark)}
+.band b{font-size:1.125rem;font-weight:800;white-space:nowrap}
+.band small{font-size:.8125rem;white-space:nowrap;opacity:.85}
+.band.pause{background:repeating-linear-gradient(135deg,transparent 0 6px,var(--rule) 6px 8px);color:var(--muted)}
+.band[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--ink)}
+.band:focus-visible,.add:focus-visible,button:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+.add{flex:0 0 52px;border:2px dashed var(--rule);background:none;border-radius:4px;font:inherit;font-size:1.5rem;color:var(--muted);cursor:pointer}
+.weeks{display:flex;gap:2px;margin-top:6px}.weeks span{flex:1 1 0;font-size:.75rem;color:var(--muted);text-align:center}.weeks i{flex:0 0 52px}
+/* editor for the selected step */
+.editor{margin-top:28px;display:grid;grid-template-columns:auto auto 1fr;gap:12px 28px;align-items:end;border-top:2px solid var(--ink);padding-top:18px}
+.editor h2{grid-column:1/-1;margin:0;font-size:1.25rem;font-weight:700}
+.editor h2 span{font-weight:400;color:var(--muted)}
+.editor label{display:flex;flex-direction:column;gap:4px;font-size:.8125rem;color:var(--muted)}
+.editor input{font:700 1.25rem "Schibsted Grotesk",sans-serif;width:6.5rem;padding:8px 10px;border:1px solid var(--rule);border-radius:4px;background:var(--field);color:var(--ink)}
+.editor input:focus{outline:2px solid var(--line);outline-offset:0}
+.editor .acts{justify-self:end;display:flex;gap:10px}
+button.text{font:500 1rem "Schibsted Grotesk",sans-serif;background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:8px 4px}
+button.text:hover{color:var(--ink)}
+@media (max-width:640px){.editor{grid-template-columns:1fr 1fr}.editor .acts{grid-column:1/-1;justify-self:start}}
+</style>
+<style id="vzcss"></style>
+</head><body><main>
+<p class="brand">GLP-1 plotter</p>
+<p class="sentence">Plot <select id="drug" aria-label="Medication"></select> every <input id="freq" type="number" min="1" step="0.5" aria-label="Days between doses"> days, starting <input id="start" type="date" aria-label="Start date">, for <input id="len" type="number" min="1" aria-label="Weeks to plot"> weeks.</p>
+<h1 id="headline"></h1>
+<p class="peak" id="peak"></p>
+<div class="scroller"><div class="track" id="track">
+ <div id="chart"></div>
+ <div class="strip" id="strip" role="group" aria-label="Plan steps"></div>
+ <div class="weeks" id="weeks" aria-hidden="true"></div>
+</div></div>
+<section class="editor" id="editor" aria-live="polite"></section>
+</main>
+<script type="module">
+import {DRUGS,loadState,compute,mg,fmtDate} from "./model.js";
+import {drawChart,CHART_CSS} from "./chart.js";
+document.getElementById("vzcss").textContent=CHART_CSS;
+const $=id=>document.getElementById(id);
+let st=loadState(),sel=0;
+$("drug").innerHTML=Object.entries(DRUGS).map(([k,v])=>`<option value="${k}">${v.name} ${v.route}</option>`).join("");
+$("drug").value=st.drug;$("freq").value=st.freq;$("start").value=st.start;$("len").value=st.weeks;
+$("drug").oninput=e=>{st.drug=e.target.value;draw()};
+$("freq").oninput=e=>{if(+e.target.value>0){st.freq=+e.target.value;draw()}};
+$("start").oninput=e=>{st.start=e.target.value;draw()};
+$("len").oninput=e=>{if(+e.target.value>=1){st.weeks=+e.target.value;draw()}};
+$("len").onchange=()=>{$("len").value=st.weeks};
+function draw(){
+ const {per,events,pts}=compute(st);if(document.activeElement!==$("len"))$("len").value=st.weeks;
+ const doses=st.steps.filter(s=>s.dose>0).map(s=>s.dose),first=doses[0],max=Math.max(...doses);
+ $("headline").textContent=`${DRUGS[st.drug].name}, ${mg(first)} mg`+(max>first?` rising to ${mg(max)} mg`:"")+` over ${st.steps.at(-1).to} weeks`;
+ const pk=pts.reduce((a,b)=>b[1]>a[1]?b:a);
+ $("peak").innerHTML=`Highest level: <b>${mg(pk[1].toFixed(2))} mg</b> in your body, around ${fmtDate(st,pk[0],{weekday:"long",day:"numeric",month:"long"})}.`;
+ $("track").style.setProperty("--weeks",st.weeks+1);
+ drawChart($("chart"),{st,pts,events,height:300});
+ // plan strip: one band per step, width = its weeks; the empty tail is the rest of the chart
+ const strip=$("strip");strip.innerHTML="";
+ st.steps.forEach((s,i)=>{const b=document.createElement("button");const lvl=s.dose>0?Math.max(1,Math.round(s.dose/max*5)):0;
+  b.className="band"+(s.dose>0?(lvl>=4?" dark":""):" pause");b.style.setProperty("--w",s.weeks);if(lvl)b.style.setProperty("--fill",`var(--r${lvl})`);
+  b.setAttribute("aria-pressed",i===sel);const n=per[i].length;
+  b.innerHTML=s.dose>0?`<b>${mg(s.dose)} mg</b><small>${s.weeks} wk, ${n} dose${n===1?"":"s"}</small>`:`<b>Pause</b><small>${s.weeks} wk</small>`;
+  b.setAttribute("aria-label",`Step ${i+1}: ${s.dose>0?mg(s.dose)+" mg":"pause"} for ${s.weeks} weeks`);
+  b.onclick=()=>{sel=i;draw();$("dose").focus()};strip.appendChild(b)});
+ const tail=st.weeks-st.steps.at(-1).to;if(tail>0){const t=document.createElement("div");t.style.flex=`${tail} 1 0`;strip.appendChild(t)}
+ const add=document.createElement("button");add.className="add";add.textContent="+";add.setAttribute("aria-label","Add a step");
+ add.onclick=()=>{st.steps.push({...st.steps.at(-1),weeks:1});sel=st.steps.length-1;draw()};strip.appendChild(add);
+ $("weeks").innerHTML=Array.from({length:st.weeks},(_,w)=>`<span>${w+1}</span>`).join("")+"<i></i>";
+ editor(per)}
+function editor(per){const s=st.steps[sel],e=$("editor");
+ const range=s.from===s.to?`week ${s.from}`:`weeks ${s.from} to ${s.to}`;
+ e.innerHTML=`<h2>Step ${sel+1} <span>${range}, ${fmtDate(st,(s.from-1)*7)} to ${fmtDate(st,s.to*7-1)}</span></h2>
+ <label>Dose (mg)<input id="dose" type="number" min="0" step="0.05" value="${mg(s.dose)}"></label>
+ <label>Weeks<input id="wks" type="number" min="1" value="${s.weeks}"></label>
+ <div class="acts">${st.steps.length>1?`<button class="text" id="rm">Remove step</button>`:""}<button class="text" id="ins">Add step after this</button></div>`;
+ $("dose").oninput=ev=>{s.dose=Math.max(0,+ev.target.value||0);redraw()};
+ $("wks").oninput=ev=>{if(+ev.target.value>=1){s.weeks=+ev.target.value;redraw()}};
+ if($("rm"))$("rm").onclick=()=>{st.steps.splice(sel,1);sel=Math.max(0,sel-1);draw()};
+ $("ins").onclick=()=>{st.steps.splice(sel+1,0,{...s,weeks:1});sel++;draw()}}
+// redraw without rebuilding the editor, so typing keeps focus
+function redraw(){const f=document.activeElement.id,v=document.activeElement.value;draw();const el=$(f);if(el){el.focus();el.value=v}}
+draw();
+</script></body></html>

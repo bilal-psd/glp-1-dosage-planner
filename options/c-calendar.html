@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Option C: Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#ffffff;--ink:#2a2118;--muted:#6e6255;--rule:#ece6de;--field:#faf8f5;--curve:#b8600f;
+ --h1:#fdf3dc;--h2:#fbe2a8;--h3:#f6c565;--h4:#e79a2e;--h5:#c26a12;--h6:#8a4308;--h-ink-dark:#ffffff;
+ --vz-line:var(--curve);--vz-grid:var(--rule);--vz-muted:var(--muted);--vz-surface:var(--bg);--vz-tip-bg:var(--ink);--vz-tip-ink:#fff;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#19140f;--ink:#f2eadf;--muted:#b1a595;--rule:#332a21;--field:#221b15;--curve:#f2b544;
+ --h1:#2b2118;--h2:#4a3316;--h3:#6d4914;--h4:#99650f;--h5:#c98a1a;--h6:#f2b544;--h-ink-dark:#19140f;--vz-tip-ink:#19140f;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.5 "Bricolage Grotesque",system-ui,sans-serif;font-variation-settings:"opsz" 14}
+main{max-width:1120px;margin:0 auto;padding:28px 16px 64px;display:grid;grid-template-columns:330px 1fr;gap:48px;align-items:start}
+@media (max-width:860px){main{grid-template-columns:minmax(0,1fr);gap:32px}}
+.set input,.set select{width:100%}
+h1{font-size:2.5rem;line-height:1;font-weight:800;font-variation-settings:"opsz" 96,"wdth" 80;letter-spacing:-.01em;margin:0 0 24px}
+aside{position:sticky;top:20px}
+@media (max-width:860px){aside{position:static}}
+.set{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:32px}
+.set label:first-child{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:4px;font-size:.8125rem;color:var(--muted)}
+input,select{font:500 1rem "Bricolage Grotesque",sans-serif;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--field);color:var(--ink);min-width:0}
+:focus-visible{outline:3px solid var(--curve);outline-offset:2px}
+h2{font-size:1.25rem;font-weight:700;font-variation-settings:"opsz" 32;margin:0 0 8px}
+/* plan: each step reads as "[dose] mg for [n] weeks" */
+ol{list-style:none;margin:0;padding:0;counter-reset:s}
+li{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+li input{width:5rem;text-align:right}
+li input.w{width:3.6rem}
+li{flex-wrap:nowrap}li .rm{margin-left:auto;text-decoration:none;font-size:1.125rem;width:36px;height:36px;border-radius:50%}li .rm:hover{background:var(--field)}
+.linkish{font:500 1rem "Bricolage Grotesque",sans-serif;background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:6px 2px}
+.linkish:hover{color:var(--ink)}
+.addbtn{margin-top:12px;font:600 1rem "Bricolage Grotesque",sans-serif;padding:9px 14px;border-radius:8px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
+.peak{margin:0 0 6px;font-size:1.125rem}
+.peak b{font-weight:700}
+#chart{margin:28px 0 44px}
+/* calendar: one row per week, one cell per day, shaded by the level that day */
+.cal{display:grid;grid-template-columns:6.5rem repeat(7,minmax(0,1fr));gap:3px}
+.cal .dow{font-size:.8125rem;color:var(--muted);text-align:center;padding-bottom:4px}
+.cal .wk{font-size:.875rem;color:var(--muted);align-self:center;line-height:1.2}
+.cal .wk b{display:block;color:var(--ink);font-weight:600}
+.cal .d{aspect-ratio:1.25;border-radius:6px;background:var(--lv);position:relative;display:flex;align-items:end;justify-content:start;padding:5px 6px;font-size:.75rem;color:var(--ink);min-height:34px}
+.cal .d.dk{color:var(--h-ink-dark)}
+.cal .d.dose::before{content:"";position:absolute;top:6px;left:6px;width:9px;height:9px;border-radius:50%;background:currentColor}
+.cal .d .n{font-weight:700;font-size:.8125rem}
+.cal .break{grid-column:1/-1;height:10px}
+.legend{display:flex;align-items:center;gap:10px;margin:20px 0 0;font-size:.8125rem;color:var(--muted);flex-wrap:wrap}
+.legend .ramp{display:flex;gap:3px}.legend .ramp i{width:26px;height:14px;border-radius:3px}
+.legend .dot{display:inline-flex;align-items:center;gap:6px}.legend .dot::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--ink)}
+@media (max-width:520px){.cal{grid-template-columns:3.2rem repeat(7,minmax(0,1fr))}.cal .wk span{display:none}.cal .d .n{font-size:.75rem}.cal .d{padding:3px 4px}}
+</style>
+<style id="vzcss"></style>
+</head><body><main>
+<aside>
+<h1>GLP-1 plotter</h1>
+<div class="set"><label>Medication<select id="drug"></select></label><label>Every (days)<input id="freq" type="number" min="1" step="0.5"></label><label>First dose<input id="start" type="date"></label></div>
+<h2>Plan</h2>
+<ol id="plan"></ol>
+<button class="addbtn" id="add">Add a step</button>
+</aside>
+<section>
+<p class="peak" id="peak"></p>
+<div id="chart"></div>
+<div class="cal" id="cal" role="table" aria-label="Level in your body, by day"></div>
+<div class="legend"><span>Less in your body</span><span class="ramp"><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i><i style="background:var(--h6)"></i></span><span>More</span><span class="dot">Dose day</span></div>
+</section>
+</main>
+<script type="module">
+import {DRUGS,loadState,compute,mg,fmtDate,dateAt} from "./model.js";
+import {drawChart,CHART_CSS} from "./chart.js";
+document.getElementById("vzcss").textContent=CHART_CSS;
+const $=id=>document.getElementById(id);
+let st=loadState();
+$("drug").innerHTML=Object.entries(DRUGS).map(([k,v])=>`<option value="${k}">${v.name} ${v.route}</option>`).join("");
+$("drug").value=st.drug;$("freq").value=st.freq;$("start").value=st.start;
+$("drug").oninput=e=>{st.drug=e.target.value;draw()};
+$("freq").oninput=e=>{if(+e.target.value>0){st.freq=+e.target.value;draw()}};
+$("start").oninput=e=>{st.start=e.target.value;draw()};
+$("add").onclick=()=>{st.steps.push({...st.steps.at(-1),weeks:1});plan();draw()};
+const maxDose=()=>Math.max(...st.steps.map(s=>s.dose),.01);
+// the plan list is only rebuilt when steps are added or removed, so typing never loses focus
+function plan(){const ol=$("plan");ol.innerHTML="";
+ st.steps.forEach((s,i)=>{const li=document.createElement("li");
+  li.innerHTML=`<input type="number" min="0" step="0.05" value="${mg(s.dose)}" aria-label="Step ${i+1} dose in mg"> mg for <input class="w" type="number" min="1" value="${s.weeks}" aria-label="Step ${i+1} weeks"> week${s.weeks===1?"":"s"}${st.steps.length>1?`<button class="linkish rm" aria-label="Remove step ${i+1}" title="Remove step">✕</button>`:""}`;
+  const [d,w]=li.querySelectorAll("input");
+  d.oninput=()=>{s.dose=Math.max(0,+d.value||0);draw()};w.oninput=()=>{if(+w.value>=1){s.weeks=+w.value;draw()}};
+  li.querySelector(".rm")?.addEventListener("click",()=>{st.steps.splice(i,1);plan();draw()});ol.appendChild(li)})}
+function draw(){const {per,events,pts}=compute(st),pk=pts.reduce((a,b)=>b[1]>a[1]?b:a);
+ $("peak").innerHTML=`${DRUGS[st.drug].name} in your body peaks at <b>${mg(pk[1].toFixed(2))} mg</b> on ${fmtDate(st,pk[0],{weekday:"long",day:"numeric",month:"long"})}.`;
+ drawChart($("chart"),{st,pts,events,height:170});
+ const cal=$("cal"),days=st.weeks*7,top=pk[1]||1;let h=`<span></span>`;
+ for(let c=0;c<7;c++)h+=`<span class="dow" role="columnheader">${dateAt(st,c)?.toLocaleDateString(undefined,{weekday:"short"})??"Day "+(c+1)}</span>`;
+ const doseOn=new Map(events.map(e=>[Math.floor(e.t),e.dose]));
+ for(let w=0;w<st.weeks;w++){const s=st.steps.find(x=>x.from===w+1);if(s&&w>0)h+=`<span class="break"></span>`;
+  h+=`<span class="wk" role="rowheader"><b>Week ${w+1}</b><span>${fmtDate(st,w*7)}</span></span>`;
+  for(let c=0;c<7;c++){const day=w*7+c,avg=pts.slice(day*4,day*4+4).reduce((a,p)=>a+p[1],0)/4,lv=Math.min(6,Math.max(1,Math.ceil(avg/top*6))),dose=doseOn.get(day);
+   h+=`<span class="d${lv>=5?" dk":""}${dose?" dose":""}" role="cell" style="--lv:var(--h${lv})" title="${fmtDate(st,day,{weekday:"short",day:"numeric",month:"short"})}: about ${mg(avg.toFixed(2))} mg in your body${dose?`, ${mg(dose)} mg dose`:""}">${dose?`<span class="n">${mg(dose)}</span>`:""}</span>`}}
+ cal.innerHTML=h;
+ document.querySelectorAll("#plan li").forEach((li,i)=>{const w=li.querySelector(".w"),s=st.steps[i];if(w&&document.activeElement!==w)w.value=s.weeks})}
+plan();draw();
+</script></body></html>
