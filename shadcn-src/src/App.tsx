@@ -451,9 +451,6 @@ export default function App() {
                 {showToday && <ReferenceLine x={today!} stroke="var(--today)" strokeWidth={2} />}
               </AreaChart>
             </ChartContainer>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground tabular-nums" aria-label="Dose colours">
-              {levels.map(d => <span key={d} className="inline-flex items-center gap-2"><i className="size-3.5 rounded-[4px]" style={{ background: doseColour.get(d) }} />{mgFmt(d)} mg</span>)}
-            </div>
           </CardContent>
           <CardFooter className="text-xs text-muted-foreground">Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice.</CardFooter>
         </Card>
