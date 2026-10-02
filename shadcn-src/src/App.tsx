@@ -227,6 +227,9 @@ export default function App() {
   const next = today == null ? undefined : events.find(e => e.t >= Math.floor(today))
   const nextStep = next && steps[perStep.findIndex(l => l.includes(next))]
   const peak = pts.reduce((m, p) => (p[1] > m[1] ? p : m), [0, 0])
+  // Clicks each pen's steps use (doses inside the chart), and whether any pen still has medicine in it.
+  const penUsed = plan.clicks ? plan.pens.map((_, pi) => steps.reduce((n, s, i) => n + (s.pen === pi ? (s.clicks ?? 0) * perStep[i].length : 0), 0)) : []
+  const penLeft = plan.pens.some((pen, pi) => penCap(pen) > penUsed[pi])
   const firstOfPen = plan.clicks ? plan.pens.map((_, pi) => steps.find(s => s.pen === pi)) : []
   const penStarts = firstOfPen.slice(1).filter(Boolean) as Step[]
 
@@ -549,7 +552,7 @@ export default function App() {
                 [today == null ? "Now" : today < 0 ? "Now · before start" : `Now · ${new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}`,
                   today == null ? "—" : `≈ ${(today < 0 ? 0 : amountBefore(events, plan.drug, today)).toFixed(1)} mg`],
                 [!next ? "Next dose" : Math.floor(next.t) === Math.floor(today!) ? "Next dose · today" : `Next dose · ${dayLabel(next.t, true)}`,
-                  !next ? "None left" : plan.clicks ? <>{nextStep?.clicks} cl <span className="font-normal text-muted-foreground">{mgFmt(next.dose)} mg</span></> : `${mgFmt(next.dose)} mg`],
+                  !next ? (plan.clicks && !penLeft ? "None left" : "None planned") : plan.clicks ? <>{nextStep?.clicks} cl <span className="font-normal text-muted-foreground">{mgFmt(next.dose)} mg</span></> : `${mgFmt(next.dose)} mg`],
                 [`Highest · ${dayLabel(peak[0], true)}`, `≈ ${peak[1].toFixed(1)} mg`],
               ].map(([label, value], k) => (
                 <div key={k} className="flex items-baseline justify-between gap-4 border-t pt-3 first:border-t-0 first:pt-0 @lg:block @lg:border-t-0 @lg:border-s @lg:ps-6 @lg:pt-0 @lg:first:border-s-0 @lg:first:ps-0">
@@ -610,7 +613,7 @@ export default function App() {
             <>
               {plan.pens.map((pen, pi) => {
                 const own = steps.map((s, i) => [s, i] as const).filter(([s]) => s.pen === pi)
-                const used = own.reduce((n, [s, i]) => n + (s.clicks ?? 0) * perStep[i].length, 0)
+                const used = penUsed[pi]
                 const doses = own.reduce((n, [, i]) => n + perStep[i].length, 0)
                 const cap = penCap(pen), left = cap - used
                 return (
