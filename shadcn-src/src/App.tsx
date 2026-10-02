@@ -42,6 +42,8 @@ const amountBefore = M.amountBefore as (e: DoseEvent[], drug: string, t: number)
 const stack = M.layout as (steps: Step[], freq: number) => number
 const upgradePlan = M.upgradePlan as (p: Plan) => Plan
 const KEY = "glp1-plotter:v1"
+// Shown once at the bottom of the page, and in the PNG and on every PDF page.
+const DISCLAIMER = "Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice."
 
 // Six steps of the data teal (OKLCH hue 182), deep to light, for the area under the curve; kept darker than the curve itself.
 const DOSE_COLOURS = Array.from({ length: 6 }, (_, i) => { const f = i / 5; return `oklch(${(0.36 + 0.30 * f).toFixed(3)} ${(0.055 + 0.045 * f).toFixed(3)} 182)` })
@@ -460,7 +462,7 @@ export default function App() {
         widths: [14, 6, ...(plan.clicks ? [10, 6] : []), 8, 10],
         rows: doseRows.map(({ e, s }) => [full(e.t), String(Math.floor(e.t / 7) + 1), ...(plan.clicks ? [pen(s), String(s.clicks)] : []), `${mgFmt(e.dose)} mg`, `${before.get(e)!.toFixed(2)} mg`]),
       },
-      disclaimer: "Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice.",
+      disclaimer: DISCLAIMER,
       fileStem: `glp1-plan-${isoDay(new Date())}`,
     }
   }
@@ -608,7 +610,6 @@ export default function App() {
               </div>
             )}
           </CardContent>
-          <CardFooter className="text-xs text-muted-foreground">Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice.</CardFooter>
         </Card>
 
         <section className="flex flex-col gap-6 xl:col-start-1 xl:row-span-3 xl:row-start-1" aria-label="Plan">
@@ -749,6 +750,7 @@ export default function App() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        <p className="mt-4 text-xs text-muted-foreground">{DISCLAIMER}</p>
       </footer>
     </main>
   )
