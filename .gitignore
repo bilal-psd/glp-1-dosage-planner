@@ -1,3 +1,5 @@
 *.zip
 .DS_Store
 __MACOSX/
+
+CLAUDE.local.md

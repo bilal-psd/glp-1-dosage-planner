@@ -1,4 +1,4 @@
-// Pharmacokinetic model and scheduling rules. Ported from glapp.io's plotter; see CLAUDE.md before changing anything here.
+// Pharmacokinetic model and scheduling rules. Ported from glapp.io's plotter; see AGENTS.md before changing anything here.
 // Pure functions only (no DOM), so the browser page and the Node tests load the same code.
 
 export const DRUGS={"semaglutide-injection":{halfLife:7,bioavailability:.89,volumeOfDistribution:12.5,tmax:1.5,name:"Semaglutide (injection)"},"semaglutide-oral":{halfLife:7,bioavailability:.01,volumeOfDistribution:12.5,tmax:.042,name:"Semaglutide (oral)"},"tirzepatide-injection":{halfLife:5,bioavailability:.8,volumeOfDistribution:10.3,tmax:1,name:"Tirzepatide (injection)"},"retatrutide-injection":{halfLife:6,bioavailability:.8,volumeOfDistribution:10,tmax:1.5,name:"Retatrutide (injection)"}};
