@@ -489,8 +489,8 @@ export default function App() {
                 <CardDescription>{weekSpan(1, steps[steps.length - 1].to!)} · {plural(events.length, "dose")}</CardDescription>
               </CardHeader>
               <CardContent>{stepTable(steps.map((_, i) => i))}</CardContent>
-              <CardFooter className="py-2">
-                <Button variant="ghost" className="-ms-2.5" onClick={() => update(p => { p.steps.push({ ...p.steps[p.steps.length - 1], doses: 1 }) })}><Plus data-icon="inline-start" />Add step</Button>
+              <CardFooter className="justify-center py-2">
+                <Button variant="ghost" onClick={() => update(p => { p.steps.push({ ...p.steps[p.steps.length - 1], doses: 1 }) })}><Plus data-icon="inline-start" />Add step</Button>
               </CardFooter>
             </Card>
           ) : (
@@ -533,8 +533,8 @@ export default function App() {
                       </div>
                       {stepTable(own.map(([, i]) => i))}
                     </CardContent>
-                    <CardFooter className="py-2">
-                      <Button variant="ghost" className="-ms-2.5" onClick={() => update(p => {
+                    <CardFooter className="justify-center py-2">
+                      <Button variant="ghost" onClick={() => update(p => {
                         const mine = p.steps.filter(s => s.pen === pi), l = mine[mine.length - 1]
                         p.steps.splice(p.steps.indexOf(l) + 1, 0, { ...l, doses: 1 })
                       })}><Plus data-icon="inline-start" />Add step</Button>
