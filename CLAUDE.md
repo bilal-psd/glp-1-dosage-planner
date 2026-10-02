@@ -2,9 +2,9 @@
 
 Single-page tool that plots the estimated amount of a GLP-1 medication in the body over time, for a titration plan made of steps (and, for tirzepatide, pens dialled by clicks).
 
-Current state: vanilla JS + ECharts 5.5.0 from cdnjs, no build step. `model.js` holds the maths and scheduling rules (pure ES module); `index.html` is the page and imports it. `test/model.test.mjs` pins the model — run `node --test` before and after any change. `options/` holds earlier redesign prototypes, not the live app. `shadcn-src/` is a second version of the page built from shadcn/ui (React + Vite, same `model.js`); `cd shadcn-src && npm run build` writes it to `shadcn/`, which is committed and served at `/shadcn/`. Rebuild and commit `shadcn/` after changing `shadcn-src/`. Serve over HTTP (`python3 -m http.server 5173`); ES modules don't load from `file://`. Hosted on GitHub Pages from `main` (repo root).
+Current state: the main page is built from shadcn/ui (React + Vite + Tailwind + Recharts) in `shadcn-src/`. `cd shadcn-src && npm run build` (run by whoever changes `shadcn-src/`) writes `index.html` and `assets/` into the repo root; commit them, since GitHub Pages serves the root of `main` with no CI build. Never hand-edit the root `index.html` or `assets/`. `model.js` holds the maths and scheduling rules (pure ES module) and is bundled into the page at build time. `test/model.test.mjs` pins the model — run `node --test` before and after any change. `classic/` is the earlier hand-styled vanilla JS + ECharts page, frozen (it imports `../model.js?v=N`; bump N if model.js exports change). `shadcn/` only redirects old /shadcn/ links (with their `#plan=` / query) to the root. `options/` holds earlier redesign prototypes. Dev: `npm --prefix shadcn-src run dev` (port 5174). To check a build, serve the root over HTTP (`python3 -m http.server 5173`); ES modules don't load from `file://`. Hosted on GitHub Pages from `main` (repo root).
 
-Look: dark mode only, Geist (one family), type sizes 13/16/24, spacing 8/12/16/24. Colour tokens are on `:root` in `index.html`: `--accent` (teal) is only for medication data (curve, pen meters, dose sliders); interactive chrome uses neutral `--action`. See PRODUCT.md for audience and goals.
+Look: dark mode only, Geist (one family), type sizes 13/16/24, spacing 8/12/16/24. Colour tokens are on `.dark` in `shadcn-src/src/index.css`: `--data` (teal) is only for medication data (curve, pen meters, dose sliders); interactive chrome stays neutral (`--primary`, and shadcn's `--accent`, which is a grey hover fill here). The classic page names these `--accent` and `--action`. See PRODUCT.md for audience and goals.
 
 ## Pharmacokinetic model (must stay identical)
 
@@ -38,7 +38,7 @@ Computation (all done in the browser at run time):
 ## UI decisions (all requested by the user)
 
 - One medication for the whole plan, plus one global "every N days" interval. Multiple medications, offset days and accumulate/compare modes were removed on purpose.
-- Dose input switch ("Enter doses as"): "mg" or "Pen clicks".
+- Dose input switch ("Enter doses as"): "mg" or "KwikPen clicks" ("Pen clicks" on the classic page).
 - Pen clicks mode only for tirzepatide (KwikPen). One injection = 60 clicks = the pen's labelled strength, so `mg = clicks / 60 × strength`. Slider 0–60 with −/+ buttons; 0 = pause.
 - In clicks mode, pens are a level above steps. Each pen has a strength (2.5–15 mg), its own steps, "+ Add step", and a meter plus footer showing clicks used and clicks/mg left (red when over capacity). A pen always keeps at least one step.
 - Pen capacity: 4 doses = 240 clicks. "Count golden dose" checkbox (off by default, applies to all pens) adds one extra dose → 300 clicks.

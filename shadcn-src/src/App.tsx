@@ -1,5 +1,5 @@
-// The GLP-1 plotter built only from stock shadcn/ui components, for comparison with the hand-styled page (../index.html).
-// Same maths (../model.js), same saved plan (localStorage "glp1-plotter:v1") and same share-link format.
+// The GLP-1 plotter (the main page), built from shadcn/ui components. The earlier hand-styled page is frozen at ../classic/.
+// Same maths (../model.js), same saved plan (localStorage "glp1-plotter:v1") and same share-link format as that page.
 import { useEffect, useMemo, useState } from "react"
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
 import { CalendarDays, Check, Link2, Minus, Plus, X } from "lucide-react"
@@ -53,18 +53,20 @@ const valid = (v: unknown): v is Plan => !!v && typeof v === "object" && Array.i
 function initialPlan(): { plan: Plan; notes: string[] } {
   const link = M.fromGlappParams(new URLSearchParams(location.search))
   if (link) return { plan: link.state as Plan, notes: link.notes }
+  const notes: string[] = []
   const m = location.hash.match(/plan=([\w-]+)/)
   if (m) {
     try {
       const v = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))))
-      if (valid(v)) return { plan: upgradePlan({ ...structuredClone(EXAMPLE), ...v }), notes: [] }
-    } catch { /* fall through */ }
+      if (valid(v)) return { plan: upgradePlan({ ...structuredClone(EXAMPLE), ...v }), notes }
+    } catch { /* reported below */ }
+    notes.push("That share link couldn't be read, so your saved plan is shown instead.")
   }
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "null")
-    if (valid(v)) return { plan: upgradePlan(v), notes: [] }
+    if (valid(v)) return { plan: upgradePlan(v), notes }
   } catch { /* fall through */ }
-  return { plan: structuredClone(EXAMPLE), notes: [] }
+  return { plan: structuredClone(EXAMPLE), notes }
 }
 
 // A number field with its unit and −/+ inside one field-shaped box: the value starts at the same inset as the
@@ -261,7 +263,8 @@ export default function App() {
   // A step's label above the chart only shows when its band is wide enough for the text (≈7.5px per character at 13px),
   // so neighbouring labels never run into each other as the chart narrows.
   const bandLabel = (s: Step) => {
-    const text = s.dose > 0 ? (plan.clicks ? `${s.clicks} cl` : `${mgFmt(s.dose)} mg`) : "pause"
+    const pen = plan.clicks && firstOfPen.indexOf(s) > 0 ? `Pen ${s.pen! + 1} · ` : ""
+    const text = pen + (s.dose > 0 ? (plan.clicks ? `${s.clicks} cl` : `${mgFmt(s.dose)} mg`) : "pause")
     const px = (Math.min(s.end!, end) - s.start!) / end * plotWidth
     return px >= text.length * 7.5 + 12 ? text : ""
   }
@@ -456,7 +459,7 @@ export default function App() {
                         <Progress className={left < 0 ? "[&_[data-slot=progress-indicator]]:bg-destructive" : undefined} value={Math.min(100, (used / penCap) * 100)} aria-label={`Pen ${pi + 1} clicks used`} />
                         <div className={`flex flex-wrap justify-between gap-2 text-xs ${left < 0 ? "text-destructive" : "text-muted-foreground"}`}>
                           <span><span className="font-semibold text-foreground">{used}</span> / {penCap} clicks used</span>
-                          <span>{left >= 0 ? `${left} clicks left · ${mgFmt((left * pen.strength) / CLICKS)} mg` : `${-left} clicks over (${mgFmt((-left * pen.strength) / CLICKS)} mg short)`}</span>
+                          <span>{left >= 0 ? `${left} clicks left · ${mgFmt((left * pen.strength) / CLICKS)} mg` : `${-left} clicks over (${mgFmt((-left * pen.strength) / CLICKS)} mg short). Add a pen or move steps.`}</span>
                         </div>
                       </div>
                       {stepTable(own.map(([, i]) => i))}
@@ -495,6 +498,7 @@ export default function App() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {doseRows.length === 0 && <TableRow><TableCell colSpan={6} className="text-muted-foreground">No doses in this plan.</TableCell></TableRow>}
                 {doseRows.map(({ e, s }, k) => {
                   const past = today != null && e.t < Math.floor(today), isNext = next === e
                   return (
