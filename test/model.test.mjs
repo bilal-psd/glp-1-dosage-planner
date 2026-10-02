@@ -2,11 +2,11 @@
 // Reference values were produced by the original inline model in index.html (commit 897be4a) before it moved to model.js.
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {DRUGS,TIRZ,EXAMPLE,solveKa,doseEvents,simulate,amountBefore,layout,toClicks,clicksToMg,fromGlappParams} from "../model.js";
+import {DRUGS,TIRZ,EXAMPLE,solveKa,doseEvents,simulate,amountBefore,layout,toClicks,clicksToMg,fromGlappParams,weeksToDoses,upgradePlan} from "../model.js";
 
 const close=(a,b,eps=1e-6)=>assert.ok(Math.abs(a-b)<eps,`${a} ≉ ${b}`);
 const kaOf=d=>solveKa(DRUGS[d].tmax,Math.LN2/DRUGS[d].halfLife);
-const example=()=>{const steps=structuredClone(EXAMPLE.steps);layout(steps);return steps};
+const example=()=>{const steps=structuredClone(EXAMPLE.steps);layout(steps,7);return steps};
 
 test("drug constants match glapp",()=>{
  assert.deepEqual(Object.fromEntries(Object.entries(DRUGS).map(([k,v])=>[k,[v.halfLife,v.bioavailability,v.volumeOfDistribution,v.tmax]])),{
@@ -18,19 +18,29 @@ test("ka solved from Tmax",()=>{
  close(kaOf("retatrutide-injection"),2.024631145794553,1e-9);
  close(kaOf("semaglutide-oral"),178.61457705417584,1e-6)});
 
-test("layout stacks step weeks",()=>{
- const s=example();assert.deepEqual(s.map(x=>[x.from,x.to]),[[1,7],[8,8],[9,9]]);assert.equal(layout(s),9)});
+test("layout stacks steps by dose count",()=>{
+ const s=example();assert.deepEqual(s.map(x=>[x.start,x.end,x.from,x.to]),[[0,49,1,7],[49,56,8,8],[56,63,9,9]]);assert.equal(layout(s,7),9)});
 
-test("example dose days are end-exclusive: a 1-week step is one dose",()=>{
+test("example dose days: 7, 1 and 1 doses every 7 days",()=>{
  const days=example().flatMap(s=>doseEvents(s,7,12)).map(e=>e.t);
  assert.deepEqual(days,[0,7,14,21,28,35,42,49,56])});
 
+test("a step keeps its dose count when the interval changes",()=>{
+ const s=[{dose:2.5,doses:2},{dose:5,doses:1}];assert.equal(layout(s,10),5);
+ assert.deepEqual(s.flatMap(x=>doseEvents(x,10,12)).map(e=>e.t),[0,10,20])});
+
 test("a 0 mg step is a pause",()=>{
- const s=[{dose:2.5,weeks:1},{dose:0,weeks:2},{dose:5,weeks:1}];layout(s);
+ const s=[{dose:2.5,doses:1},{dose:0,doses:2},{dose:5,doses:1}];layout(s,7);
  assert.deepEqual(s.flatMap(x=>doseEvents(x,7,12)).map(e=>e.t),[0,21])});
 
 test("doses stop at the chart end",()=>{
- const s=[{dose:2.5,weeks:10}];layout(s);assert.equal(doseEvents(s[0],7,4).length,5)});
+ const s=[{dose:2.5,doses:10}];layout(s,7);assert.equal(doseEvents(s[0],7,4).length,5)});
+
+test("plans saved with weeks per step become dose counts",()=>{
+ assert.equal(weeksToDoses(7,7),7);assert.equal(weeksToDoses(1,10),1);assert.equal(weeksToDoses(2,10),2);assert.equal(weeksToDoses(1,3.5),2);
+ const p=upgradePlan({freq:7,steps:[{dose:2.5,weeks:7},{dose:3.7,weeks:1},{dose:3.25,weeks:1}]});
+ assert.deepEqual(p.steps,EXAMPLE.steps);
+ assert.deepEqual(upgradePlan({freq:7,steps:[{dose:1,doses:3}]}).steps,[{dose:1,doses:3}])});
 
 test("amount in body for the example plan",()=>{
  const ev=example().flatMap(s=>doseEvents(s,7,12)),pts=simulate(ev,TIRZ,12);
@@ -45,6 +55,6 @@ test("pen clicks: 60 clicks = the pen's strength",()=>{
 test("glapp links: gaps become pauses, extras are reported",()=>{
  const q=new URLSearchParams("medication1=tirzepatide-injection&dose1=2.5&from1=1&to1=4&frequency1=7&medication2=tirzepatide-injection&dose2=5&from2=7&to2=8&frequency2=7&start_date=2026-01-05&length=10");
  const {state,notes}=fromGlappParams(q);
- assert.deepEqual(state.steps.map(s=>[s.dose,s.weeks]),[[2.5,4],[0,2],[5,2]]);
+ assert.deepEqual(state.steps.map(s=>[s.dose,s.doses]),[[2.5,4],[0,2],[5,2]]);
  assert.equal(state.start,"2026-01-05");assert.equal(state.weeks,10);assert.deepEqual(notes,[]);
  assert.equal(fromGlappParams(new URLSearchParams("")),null)});

@@ -32,7 +32,10 @@ button:disabled{cursor:not-allowed;opacity:.45}
 /* Controls: every control is 44px tall */
 .field{display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:20px;color:var(--mute)}
 .input{height:44px;padding:0 12px;background:var(--sunken);border:1px solid var(--control);border-radius:8px;color:var(--ink);font-size:16px}
-select.input{padding-right:8px}
+select.input{-webkit-appearance:none;appearance:none;padding-right:36px;background:var(--sunken) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239c9ea5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center}
+/* Number boxes: no browser spinners (steps are typed or use the −/+ buttons) */
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .btn{height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:transparent;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
 .btn.primary{background:var(--action);color:var(--on-action);border-color:var(--action);font-weight:600}
 .btn.text{border:0;padding:0 8px;color:var(--action)}
@@ -44,7 +47,13 @@ select.input{padding-right:8px}
 .seg{display:flex;height:44px;padding:4px;background:var(--sunken);border:1px solid var(--control);border-radius:8px}
 .seg button{min-width:104px;padding:0 12px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--mute)}
 .seg button[aria-checked=true]{background:var(--surface);border-color:var(--line);color:var(--ink);font-weight:600}
-input[type=range]{width:100%;margin:0;accent-color:var(--accent);height:44px}
+/* Slider drawn the same in every browser: 4px track filled up to the value (--fill, set in draw()), 20px thumb */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;margin:0;background:transparent;--fill:0%}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--accent) var(--fill),var(--track) var(--fill))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-8px;border:0;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--surface)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border:0;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--surface)}
 
 /* Header */
 header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;min-height:44px}
@@ -73,7 +82,7 @@ header .actions{display:flex;gap:8px}
 .headrow .grow{flex-grow:1}
 .headrow .icon{margin-right:-12px}
 .strength{display:flex;align-items:center;gap:8px}
-.strength select{width:104px}
+.strength select{width:112px}
 .meter{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;height:6px}
 .meter i{display:block;background:var(--track);border-radius:2px;overflow:hidden}
 .meter i b{display:block;height:100%;background:var(--accent)}
@@ -82,7 +91,7 @@ header .actions{display:flex;gap:8px}
 .penfoot strong{color:var(--ink);font-weight:600}
 .over .meter i b{background:var(--danger)}.over .penfoot{color:var(--danger)}.over .penfoot strong{color:var(--danger)}
 
-.row{display:grid;grid-template-columns:88px minmax(0,1fr) 72px 64px 44px;grid-template-areas:"name ctl out weeks rm";column-gap:24px;align-items:center;padding:16px var(--pad);border-bottom:1px solid var(--line2)}
+.row{display:grid;grid-template-columns:120px minmax(0,1fr) 72px 64px 44px;grid-template-areas:"name ctl out weeks rm";column-gap:24px;align-items:center;padding:16px var(--pad);border-bottom:1px solid var(--line2)}
 .row.colhead{padding-top:12px;padding-bottom:12px}
 .row .name{grid-area:name;display:flex;flex-direction:column;line-height:20px;min-width:0}
 .row .ctl{grid-area:ctl;display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;align-items:center}
@@ -92,10 +101,10 @@ header .actions{display:flex;gap:8px}
 .row .out b{font-weight:600}
 .row .wk{grid-area:weeks;display:flex;align-items:center;gap:8px}
 .row .wk .meta{display:none}
-.row .weeks{width:64px;text-align:right}
+.row .weeks{width:64px;padding:0 8px;text-align:center}
 .row .rm{grid-area:rm;margin-right:-12px}
 .row .wk{justify-self:end}
-.colhead .c-dose{grid-area:ctl}.colhead .c-out{grid-area:out;text-align:right}.colhead .c-weeks{grid-area:weeks;text-align:right}
+.colhead .c-dose{grid-area:ctl}.colhead .c-out{grid-area:out;text-align:right}.colhead .c-weeks{grid-area:weeks;justify-self:start;width:64px;text-align:center}
 .addrow{padding:8px 16px}
 
 /* Results */
@@ -185,7 +194,7 @@ tr.newpen td{border-top:1px dashed var(--marker)}
 </div>
 </main>
 <script type="module">
-import {DRUGS,TIRZ,CLICKS,PEN_CLICKS,STRENGTHS,EXAMPLE,doseEvents,simulate,amountBefore,layout as stack,toClicks,clicksToMg,fromGlappParams} from "./model.js";
+import {DRUGS,TIRZ,CLICKS,PEN_CLICKS,STRENGTHS,EXAMPLE,doseEvents,simulate,amountBefore,layout as stack,toClicks,clicksToMg,fromGlappParams,upgradePlan} from "./model.js?v=2"; // bump ?v= when model.js exports change, so a cached copy is never paired with this page
 
 const KEY="glp1-plotter:v1";
 const $=id=>document.getElementById(id);
@@ -196,13 +205,14 @@ const svg=k=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke
 const shortName=d=>DRUGS[d].name.replace(/ \(.*/,"");
 
 // ---- Load: a glapp-style link wins, then a share link (#plan=…), then what this browser saved, then the example.
+// Share links and saved plans from before steps were counted in doses have weeks per step; upgradePlan converts them.
 const valid=v=>v&&typeof v==="object"&&Array.isArray(v.steps)&&v.steps.length&&(v.drug in DRUGS);
 let pending=[];
 function fromLink(){const r=fromGlappParams(new URLSearchParams(location.search),esc);if(!r)return null;pending.push(...r.notes);return r.state}
 function fromHash(){const m=location.hash.match(/plan=([\w-]+)/);if(!m)return null;
- try{const v=JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g,"+").replace(/_/g,"/")))));if(valid(v))return {...structuredClone(EXAMPLE),...v};}catch{}
+ try{const v=JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g,"+").replace(/_/g,"/")))));if(valid(v))return upgradePlan({...structuredClone(EXAMPLE),...v});}catch{}
  pending.push("That share link couldn't be read, so your saved plan is shown instead.");return null}
-function fromStorage(){try{const v=JSON.parse(localStorage.getItem(KEY));return valid(v)?v:null}catch{return null}}
+function fromStorage(){try{const v=JSON.parse(localStorage.getItem(KEY));return valid(v)?upgradePlan(v):null}catch{return null}}
 let state=structuredClone(fromLink()||fromHash()||fromStorage()||EXAMPLE);
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state))}catch{}};
 
@@ -215,7 +225,7 @@ function todayDay(){const d=new Date(state.start+"T00:00");return isNaN(d)?null:
 const clicksAllowed=()=>state.drug===TIRZ;
 const penCap=()=>PEN_CLICKS+(state.gold?CLICKS:0);   // golden dose: the extra full dose most pens contain, not guaranteed
 const penOf=s=>state.pens[s.pen];
-const layout=()=>stack(state.steps);
+const layout=()=>stack(state.steps,state.freq);
 function syncDoses(){if(state.clicks)state.steps.forEach(s=>{s.dose=clicksToMg(s.clicks,penOf(s).strength)})}
 function setClicks(on){
  if(on&&!clicksAllowed())return;
@@ -241,7 +251,7 @@ $("inMg").onclick=()=>setClicks(false);$("inClicks").onclick=()=>setClicks(true)
 $("noticeClose").onclick=()=>notify([]);
 $("reset").onclick=()=>{if(!confirm("Replace your plan with the example? Your current plan will be lost."))return;notify([]);state=structuredClone(EXAMPLE);layout();fillTop();render();draw()};
 $("share").onclick=async()=>{
- const json=JSON.stringify({start:state.start,weeks:state.weeks,drug:state.drug,freq:state.freq,clicks:state.clicks,gold:state.gold,pens:state.pens,steps:state.steps.map(({dose,weeks,pen,clicks})=>({dose,weeks,pen,clicks}))});
+ const json=JSON.stringify({start:state.start,weeks:state.weeks,drug:state.drug,freq:state.freq,clicks:state.clicks,gold:state.gold,pens:state.pens,steps:state.steps.map(({dose,doses,pen,clicks})=>({dose,doses,pen,clicks}))});
  const url=location.origin+location.pathname+"#plan="+btoa(unescape(encodeURIComponent(json))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
  const label=$("share").querySelector("span");
  try{await navigator.clipboard.writeText(url);label.textContent="Link copied"}catch{prompt("Copy this link:",url);return}
@@ -258,15 +268,15 @@ function stepRow(s,i){
   :`<label class="dose"><input class="input" type="number" min="0" step="0.05" inputmode="decimal" data-k="dose" value="${mgFmt(s.dose)}" aria-label="Step ${i+1} dose in mg"><span class="meta">mg per dose</span></label>`;
  d.innerHTML=`<div class="name"><span>Step ${i+1}</span><span class="meta" data-sum></span></div>${dose}
   <div class="out"><b data-o1></b><span class="meta" data-o2></span></div>
-  <label class="wk"><input class="input weeks" type="number" min="1" inputmode="numeric" data-k="weeks" value="${s.weeks}" aria-label="Step ${i+1} length in weeks"><span class="meta" aria-hidden="true">wk</span></label>
+  <label class="wk"><input class="input weeks" type="number" min="1" inputmode="numeric" data-k="doses" value="${s.doses}" aria-label="Step ${i+1} number of doses"><span class="meta" aria-hidden="true">×</span></label>
   ${removable?`<button class="icon rm" aria-label="Remove step ${i+1}">${svg("x")}</button>`:""}`;
- d.querySelectorAll("[data-k]").forEach(el=>el.addEventListener("input",()=>{const k=el.dataset.k;if(k==="weeks"&&!(+el.value>=1))return;s[k]=+el.value||0;if(k==="weeks")layout();if(k==="clicks")syncDoses();draw()}));
- d.querySelector("[data-k=weeks]").addEventListener("change",e=>{e.target.value=s.weeks});
+ d.querySelectorAll("[data-k]").forEach(el=>el.addEventListener("input",()=>{const k=el.dataset.k;if(k==="doses"&&!(+el.value>=1))return;s[k]=+el.value||0;if(k==="doses")layout();if(k==="clicks")syncDoses();draw()}));
+ d.querySelector("[data-k=doses]").addEventListener("change",e=>{e.target.value=s.doses});
  d.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{s.clicks=Math.min(CLICKS,Math.max(0,s.clicks+ +b.dataset.step));d.querySelector("[data-k=clicks]").value=s.clicks;syncDoses();draw()});
  const rm=d.querySelector(".rm");if(rm)rm.onclick=()=>{state.steps.splice(i,1);layout();render();draw()};
  return d}
 function colHead(){const d=document.createElement("div");d.className="row colhead meta";d.setAttribute("aria-hidden","true");
- d.innerHTML=`<span class="name">Step</span><span class="c-dose">${state.clicks?"Clicks per dose":"Dose"}</span><span class="c-out">${state.clicks?"Dose":"Doses"}</span><span class="c-weeks">Weeks</span>`;return d}
+ d.innerHTML=`<span class="name">Step</span><span class="c-dose">${state.clicks?"Clicks per dose":"Dose"}</span><span class="c-out">${state.clicks?"Dose":"Total"}</span><span class="c-weeks">Doses</span>`;return d}
 function addButton(label,fn){const w=document.createElement("div");w.className="addrow";const b=document.createElement("button");b.className="btn text";b.textContent=label;b.onclick=fn;w.appendChild(b);return w}
 function render(){
  $("inMg").setAttribute("aria-checked",!state.clicks);$("inClicks").setAttribute("aria-checked",state.clicks);
@@ -277,7 +287,7 @@ function render(){
   const card=document.createElement("article");card.className="card block";
   card.innerHTML=`<div class="head"><div class="headrow"><h3>Steps</h3><div class="grow"></div><span class="meta" data-span></span></div></div>`;
   card.appendChild(colHead());state.steps.forEach((s,i)=>card.appendChild(stepRow(s,i)));
-  card.appendChild(addButton("+ Add step",()=>{const l=state.steps[state.steps.length-1];state.steps.push({...l,weeks:1});layout();render();draw()}));
+  card.appendChild(addButton("+ Add step",()=>{const l=state.steps[state.steps.length-1];state.steps.push({...l,doses:1});layout();render();draw()}));
   box.appendChild(card);return}
  state.pens.forEach((p,pi)=>{
   const card=document.createElement("article");card.className="card block";card.dataset.pen=pi;
@@ -290,10 +300,10 @@ function render(){
   const rm=card.querySelector("[data-rmpen]");if(rm)rm.onclick=()=>{state.steps=state.steps.filter(s=>s.pen!==pi);state.steps.forEach(s=>{if(s.pen>pi)s.pen--});state.pens.splice(pi,1);layout();render();draw()};
   card.appendChild(colHead());
   state.steps.forEach((s,i)=>{if(s.pen===pi)card.appendChild(stepRow(s,i))});
-  card.appendChild(addButton("+ Add step",()=>{const own=state.steps.filter(s=>s.pen===pi),l=own[own.length-1];state.steps.splice(state.steps.indexOf(l)+1,0,{...l,weeks:1});layout();render();draw()}));
+  card.appendChild(addButton("+ Add step",()=>{const own=state.steps.filter(s=>s.pen===pi),l=own[own.length-1];state.steps.splice(state.steps.indexOf(l)+1,0,{...l,doses:1});layout();render();draw()}));
   box.appendChild(card)});
  const add=document.createElement("button");add.className="btn dashed";add.textContent="+ Add pen";
- add.onclick=()=>{const l=state.steps[state.steps.length-1],p=state.pens.length;state.pens.push({strength:penOf(l).strength});state.steps.push({...l,weeks:1,pen:p});layout();syncDoses();render();draw()};
+ add.onclick=()=>{const l=state.steps[state.steps.length-1],p=state.pens.length;state.pens.push({strength:penOf(l).strength});state.steps.push({...l,doses:1,pen:p});layout();syncDoses();render();draw()};
  box.appendChild(add)}
 
 // ---- Chart
@@ -301,7 +311,7 @@ const chart=echarts.init($("chart"),null,{renderer:"svg"});
 new ResizeObserver(()=>chart.resize()).observe($("chart"));
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const weekSpan=(a,b)=>a===b?`Week ${a}`:`Weeks ${a}–${b}`;
-const wk=(a,b)=>a===b?`Wk ${a}`:`Wk ${a}–${b}`;
+const dayRange=(a,b)=>Math.floor(a)===Math.floor(b)?dayLabel(a):`${dayLabel(a)} – ${dayLabel(b)}`;
 
 function draw(){
  const total=layout();if(total>state.weeks){state.weeks=total;if(document.activeElement!==$("len"))$("len").value=total}
@@ -315,11 +325,12 @@ function draw(){
 
  // Step rows
  document.querySelectorAll(".row[data-i]").forEach(el=>{const i=+el.dataset.i,s=state.steps[i];if(!s)return;const n=perStep[i].length;
-  el.querySelector("[data-sum]").textContent=`${wk(s.from,s.to)} · ${s.dose>0?n+"×":"pause"}`;
-  el.querySelector("[data-sum]").title=`${dayLabel((s.from-1)*7)} – ${dayLabel(s.to*7-1)}`;
+  el.querySelector("[data-sum]").textContent=s.dose>0?dayRange(s.start,s.start+(s.doses-1)*state.freq):`Pause · ${dayRange(s.start,s.end-1)}`;
+  el.querySelector("[data-sum]").title=weekSpan(s.from,s.to);
   const o1=el.querySelector("[data-o1]"),o2=el.querySelector("[data-o2]");
+  const rg=el.querySelector("input[type=range]");if(rg)rg.style.setProperty("--fill",`${s.clicks/CLICKS*100}%`);
   if(state.clicks){o1.textContent=`${s.clicks} cl`;o2.textContent=s.clicks?`${mgFmt(s.dose)} mg`:"pause"}
-  else{o1.textContent=s.dose>0?`${n}×`:"pause";o2.textContent=s.dose>0?`${mgFmt(s.dose*n)} mg`:""}});
+  else{o1.textContent=s.dose>0?`${mgFmt(s.dose*n)} mg`:"pause";o2.textContent=""}});
  if(!state.clicks){const sp=document.querySelector("[data-span]");if(sp)sp.textContent=`${weekSpan(1,total)} · ${events.length} dose${events.length===1?"":"s"}`}
 
  // Pen cards
@@ -350,7 +361,7 @@ function draw(){
   +(showToday?`<span><i style="width:2px;height:12px;background:var(--today)"></i>Today</span>`:"")
   +(pensChange.length?`<span><i style="width:0;height:12px;border-left:2px dashed var(--marker)"></i>New pen</span>`:"");
  const w=chart.getWidth()-56,stepLabel=(s,i)=>{const pen=state.clicks&&firstOfPen.indexOf(s)>0?`Pen ${s.pen+1} · `:"";return s.dose>0?pen+(state.clicks?`${s.clicks} cl`:`${mgFmt(s.dose)} mg`):pen+"pause"};
- const bands=state.steps.filter(s=>(s.from-1)*7<end).map((s,i)=>[{xAxis:(s.from-1)*7,itemStyle:{color:i%2?"transparent":css("--band")},label:{formatter:stepLabel(s,i),width:Math.max(0,w*Math.min(s.weeks,state.weeks-s.from+1)/state.weeks-8),overflow:"truncate"}},{xAxis:Math.min(s.to*7,end)}]);
+ const bands=state.steps.filter(s=>s.start<end).map((s,i)=>[{xAxis:s.start,itemStyle:{color:i%2?"transparent":css("--band")},label:{formatter:stepLabel(s,i),width:Math.max(0,w*(Math.min(s.end,end)-s.start)/end-8),overflow:"truncate"}},{xAxis:Math.min(s.end,end)}]);
  const mute=css("--mute"),line=css("--line"),accent=css("--accent");
  chart.setOption({backgroundColor:"transparent",animation:false,textStyle:{fontFamily:"Geist, system-ui, sans-serif",fontSize:13},
   grid:{left:8,right:16,top:28,bottom:4,containLabel:true},
@@ -363,7 +374,7 @@ function draw(){
   series:[{type:"line",data:pts,showSymbol:false,clip:false,lineStyle:{width:2,color:accent},itemStyle:{color:accent},areaStyle:{color:css("--accent-soft"),opacity:1},
    markArea:{silent:true,label:{position:"insideTopLeft",offset:[0,-24],color:mute,fontSize:13},data:bands},
    markLine:{symbol:"none",silent:true,label:{show:false},data:[
-    ...pensChange.map(s=>({xAxis:(s.from-1)*7,lineStyle:{color:css("--marker"),type:[3,4],width:1.5}})),
+    ...pensChange.map(s=>({xAxis:s.start,lineStyle:{color:css("--marker"),type:[3,4],width:1.5}})),
     ...(showToday?[{xAxis:today,lineStyle:{color:css("--today"),type:"solid",width:2}}]:[])]}}]},true);
 
  // Dose table

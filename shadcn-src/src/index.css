@@ -97,6 +97,8 @@
 }
 
 .dark {
+    /* Native controls (number spinners, scrollbars) draw in their dark style. */
+    color-scheme: dark;
     /* Agreed dark palette: neutrals on one ramp (OKLCH hue 275). --data (teal) is only for medication data;
        interactive chrome (primary buttons, checkboxes, focus) stays neutral. */
     --background: #0d0e11;

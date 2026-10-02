@@ -28,11 +28,12 @@ Computation (all done in the browser at run time):
 
 ## Scheduling rules (deliberate difference from glapp)
 
-- The plan is an ordered list of steps; each step has a dose and a number of weeks (default 1).
-- Start weeks are derived by stacking step durations (`layout()`): steps of 7, 1, 1 weeks → weeks 1–7, 8, 9.
-- Dose days for a step: from day `(from−1)·7`, every `freq` days, while `t < to·7` (end-exclusive). glapp uses `t <= to·7`, which adds an extra dose; this was a bug the user explicitly wanted fixed. A 1-week step = exactly one dose.
-- A dose of 0 (or 0 clicks) is a pause step: no dose events.
-- If the steps add up to more weeks than the chart length, the page extends the length; it never shrinks it.
+- The plan is an ordered list of steps; each step has a dose and a number of doses (default 1). Steps used to be measured in weeks; the user changed this to doses because "Dose every" can be any interval, not just 7 days.
+- Steps run back to back in dose slots (`layout(steps, freq)`): dose k of the whole plan falls on day `k·freq`. A step's `start`/`end` are days (end-exclusive) and `from`/`to` the calendar weeks it covers, for labels. 7, 1, 1 doses every 7 days → days 0–48, 49–55, 56–62 → weeks 1–7, 8, 9. Changing the interval keeps each step's dose count and moves the dates.
+- Dose days for a step: `start + i·freq` for i < doses, none past the chart end.
+- Old plans (saved state, share links) have `weeks` per step; `upgradePlan()` converts them to the dose count the old rule produced, `⌈weeks·7 / freq⌉` (`weeksToDoses`). glapp links (`fromN`/`toN` weeks) convert the same way. The old rule was end-exclusive (`t < to·7`; glapp's `t <= to·7` added an extra dose, a bug the user wanted fixed), so at freq 7 a 1-week step is still one dose.
+- A dose of 0 (or 0 clicks) is a pause step: it takes its dose slots without dosing.
+- If the steps run past the chart length (`layout()` returns the weeks needed), the page extends the length; it never shrinks it.
 
 ## UI decisions (all requested by the user)
 
@@ -42,7 +43,7 @@ Computation (all done in the browser at run time):
 - In clicks mode, pens are a level above steps. Each pen has a strength (2.5–15 mg), its own steps, "+ Add step", and a meter plus footer showing clicks used and clicks/mg left (red when over capacity). A pen always keeps at least one step.
 - Pen capacity: 4 doses = 240 clicks. "Count golden dose" checkbox (off by default, applies to all pens) adds one extra dose → 300 clicks.
 - Changing a pen's strength keeps clicks and recomputes mg.
-- Each step header shows its week range and dose count, computed from actual dose events.
+- Each step shows the dates of its first and last dose (a pause shows the dates it covers); its dose count is the step's own input.
 
 ## Persistence and loading
 
