@@ -215,7 +215,12 @@ export default function App() {
 
   const summary = [shortName(plan.drug), plan.clicks ? plural(plan.pens.length, "pen") : null, `${plan.weeks} weeks`].filter(Boolean).join(" · ")
   const weekSpan = (a: number, b: number) => (a === b ? `Week ${a}` : `Weeks ${a}–${b}`)
-  const dayRange = (a: number, b: number) => (Math.floor(a) === Math.floor(b) ? dayLabel(a) : `${dayLabel(a)} – ${dayLabel(b)}`)
+  // "19 Sept", "5–12 Sept" within one month, "29 Aug – 5 Sept" across months.
+  const dayRange = (a: number, b: number) => {
+    if (Math.floor(a) === Math.floor(b)) return dayLabel(a)
+    const x = dateAt(a), y = dateAt(b)
+    return x && y && x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear() ? `${x.getDate()}–${dayLabel(b)}` : `${dayLabel(a)} – ${dayLabel(b)}`
+  }
 
   // ---- One step as a table row; clicks mode gets − / slider / +, mg mode a number field.
   function stepRow(i: number) {
@@ -228,7 +233,9 @@ export default function App() {
           <div>Step {i + 1}</div>
           <div className="text-xs text-muted-foreground">{s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq) : `Pause · ${dayRange(s.start!, s.end! - 1)}`}</div>
         </TableCell>
-        <TableCell className={plan.clicks ? "max-sm:col-span-4 max-sm:col-start-1 max-sm:row-start-2" : undefined}>
+        {/* Phones, clicks mode: the slider row stops at the Doses column (not under the remove ×), so the clicks field sits
+            exactly under the Doses field. */}
+        <TableCell className={plan.clicks ? "max-sm:col-span-3 max-sm:col-start-1 max-sm:row-start-2" : undefined}>
           {plan.clicks ? (
             // Slider for big moves; the clicks field beside it for exact clicks, with − and + next to the number (user's pick "B").
             <div className="flex items-center gap-4">
