@@ -51,7 +51,9 @@ Computation (all done in the browser at run time):
 - Now / Next dose / Highest are one summary strip (user's pick "B"): values at body size, 3 columns split by hairlines when the strip is ≥ 32rem, label-left / value-right rows when narrower.
 - Order below xl: settings, summary, chart, plan, doses. At xl the plan is the left column.
 - "+ Add step" is centred in its card footer, in line with "+ Add pen".
-- Phones (clicks mode): a step is two rows: name + dates | mg | Doses field | ×, then slider + clicks field. The slider row stops at the Doses column so the clicks field sits exactly under the Doses field. Same-month dates read "5–12 Sept". In mg mode the step name has its own line on phones. The user still finds this layout unclear (see PLAN.md).
+- Phones (clicks mode), user's pick "B" then "B2": a step is two columns. Left: the mg per dose as the step's headline with "Step N · dates" under it, then the slider. Right: the Doses field ("2 doses") above the clicks field ("15 cl"). The pen's strength menu, the Doses fields and the clicks fields are all 7.5rem wide and share one right edge (also the meter's). Same-month dates read "5–12 Sept". In mg mode the step name has its own line on phones.
+- No remove × column on steps: at 1 dose, the Doses field's − becomes a bin that removes the step (`CountField` `onRemove`). Where a step can't be removed (the only step, or a pen's only step) the − is just disabled. Fields show their unit ("doses", "cl") in 13px.
+- Remove pen is a × in the pen's title row, straight above the strength menu, the glyph lined up with the menu's right edge (pick "B2"; "Remove pen" in the footer was the rejected alternative). The × beside the strength menu was removed.
 
 ## Persistence and loading
 

@@ -2,7 +2,7 @@
 // Same maths (../model.js), same saved plan (localStorage "glp1-plotter:v1") and same share-link format as that page.
 import { useEffect, useMemo, useState } from "react"
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
-import { CalendarDays, Check, Link2, Minus, Plus, X } from "lucide-react"
+import { CalendarDays, Check, Link2, Minus, Plus, Trash2, X } from "lucide-react"
 
 import * as M from "../../model.js"
 import { cn } from "@/lib/utils"
@@ -78,15 +78,22 @@ function initialPlan(): { plan: Plan; notes: string[] } {
 // A whole-number count with − and + at its edges and the number centred between them (user's pick "C" from a comparison).
 // Replaces a native number field, whose Chrome-only hover arrows pushed the number off centre. Typing is digits only;
 // a typed value applies when it's in range, and the field shows the current value again on blur.
-function CountField({ value, onChange, min = 1, max = 99, label, unit }: { value: number; onChange: (v: number) => void; min?: number; max?: number; label: string; unit?: string }) {
+// With onRemove, the − turns into a bin at the minimum and removes the item (replaces a separate × column; user's pick "B").
+function CountField({ value, onChange, min = 1, max = 99, label, unit, onRemove, removeLabel }: {
+  value: number; onChange: (v: number) => void; min?: number; max?: number; label: string; unit?: string
+  onRemove?: () => void; removeLabel?: string
+}) {
   const [draft, setDraft] = useState(String(value))
   const [shown, setShown] = useState(value)
   if (value !== shown) { setShown(value); setDraft(String(value)) }
   const set = (v: number) => onChange(Math.min(max, Math.max(min, v)))
-  const btn = "grid h-full w-8 shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground disabled:pointer-events-none disabled:opacity-40"
+  const bin = !!onRemove && value <= min
+  const btn = "grid h-full w-7 shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground disabled:pointer-events-none disabled:opacity-40"
   return (
-    <div className="grid h-9 w-26 shrink-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center overflow-hidden rounded-lg border border-input text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-muted">
-      <button type="button" className={btn} aria-label={`${label}: one fewer`} disabled={value <= min} onClick={() => set(value - 1)}><Minus className="size-3.5" strokeWidth={1.5} /></button>
+    <div className="grid h-9 w-30 shrink-0 grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center overflow-hidden rounded-lg border border-input text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-muted">
+      {bin
+        ? <button type="button" className={`${btn} hover:text-destructive focus-visible:text-destructive`} aria-label={removeLabel} onClick={onRemove}><Trash2 className="size-3.5" strokeWidth={1.5} /></button>
+        : <button type="button" className={btn} aria-label={`${label}: one fewer`} disabled={value <= min} onClick={() => set(value - 1)}><Minus className="size-3.5" strokeWidth={1.5} /></button>}
       {/* With a unit, number and unit are centred together; the number field is sized to its digits. */}
       <label className="flex min-w-0 cursor-text items-baseline justify-center gap-1">
       <input type="text" inputMode="numeric" value={draft} aria-label={label} className={`min-w-0 bg-transparent text-center tabular-nums outline-none ${unit ? "" : "w-full"}`}
@@ -94,7 +101,7 @@ function CountField({ value, onChange, min = 1, max = 99, label, unit }: { value
         onChange={e => { const t = e.target.value.replace(/\D/g, "").slice(0, 2); setDraft(t); const v = +t; if (t !== "" && v >= min && v <= max) onChange(v) }}
         onKeyDown={e => { if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); set(value + (e.key === "ArrowUp" ? 1 : -1)) } }}
         onBlur={() => setDraft(String(value))} />
-      {unit && <span className="text-muted-foreground" aria-hidden="true">{unit}</span>}
+      {unit && <span className="text-xs text-muted-foreground" aria-hidden="true">{unit}</span>}
       </label>
       <button type="button" className={btn} aria-label={`${label}: one more`} disabled={value >= max} onClick={() => set(value + 1)}><Plus className="size-3.5" strokeWidth={1.5} /></button>
     </div>
@@ -227,19 +234,29 @@ export default function App() {
     const s = steps[i], n = perStep[i].length
     const removable = steps.length > 1 && !(plan.clicks && steps.filter(x => x.pen === s.pen).length === 1)
     const setClicksTo = (c: number) => update(p => { p.steps[i].clicks = Math.min(CLICKS, Math.max(0, c)) })
+    const dates = s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq) : dayRange(s.start!, s.end! - 1)
+    // Phones: two columns. Left: what the step is, then the slider; right: the Doses field above the clicks field, the same
+    // width and right edge as the pen's strength menu (user's pick "B2"). In clicks mode the mg per dose heads the step,
+    // right above the slider that sets it. No remove ×: at 1 dose the Doses field's − becomes a bin.
     return (
-      <TableRow key={i} className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto_auto_28px] max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-3 max-sm:py-4 max-sm:*:p-0">
-        <TableCell className={plan.clicks ? undefined : "max-sm:col-span-4"}>
-          <div>Step {i + 1}</div>
-          <div className="text-xs text-muted-foreground">{s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq) : `Pause · ${dayRange(s.start!, s.end! - 1)}`}</div>
+      <TableRow key={i} className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_7.5rem] max-sm:items-center max-sm:gap-3 max-sm:py-4 max-sm:*:p-0">
+        <TableCell className={plan.clicks ? undefined : "max-sm:col-span-2"}>
+          {plan.clicks && (
+            <div className="sm:hidden">
+              <div className={s.dose > 0 ? "font-semibold tabular-nums" : "text-muted-foreground"}>{s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause"}</div>
+              <div className="text-xs text-muted-foreground"><span className="whitespace-nowrap">Step {i + 1} ·</span> <span className="whitespace-nowrap">{dates}</span></div>
+            </div>
+          )}
+          <div className={plan.clicks ? "max-sm:hidden" : undefined}>
+            <div>Step {i + 1}</div>
+            <div className="text-xs text-muted-foreground">{s.dose > 0 ? dates : `Pause · ${dates}`}</div>
+          </div>
         </TableCell>
-        {/* Phones, clicks mode: the slider row stops at the Doses column (not under the remove ×), so the clicks field sits
-            exactly under the Doses field. */}
-        <TableCell className={plan.clicks ? "max-sm:col-span-3 max-sm:col-start-1 max-sm:row-start-2" : undefined}>
+        <TableCell className={plan.clicks ? "max-sm:col-span-2 max-sm:col-start-1 max-sm:row-start-2" : undefined}>
           {plan.clicks ? (
             // Slider for big moves; the clicks field beside it for exact clicks, with − and + next to the number (user's pick "B").
-            <div className="flex items-center gap-4">
-              <Slider className="min-w-24" min={0} max={CLICKS} step={1} value={[s.clicks ?? 0]} onValueChange={([v]) => setClicksTo(v)} aria-label={`Step ${i + 1} clicks per dose`} />
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Slider className="min-w-20" min={0} max={CLICKS} step={1} value={[s.clicks ?? 0]} onValueChange={([v]) => setClicksTo(v)} aria-label={`Step ${i + 1} clicks per dose`} />
               <CountField value={s.clicks ?? 0} min={0} max={CLICKS} unit="cl" label={`Step ${i + 1} clicks per dose`} onChange={setClicksTo} />
             </div>
           ) : (
@@ -250,18 +267,16 @@ export default function App() {
             </div>
           )}
         </TableCell>
-        <TableCell className={plan.clicks ? "text-end" : "text-end max-sm:hidden"}>
+        <TableCell className="text-end max-sm:hidden">
           {plan.clicks
             ? <div className="font-semibold">{s.clicks ? `${mgFmt(s.dose)} mg` : "pause"}</div>
             : <div className="font-semibold">{s.dose > 0 ? `${mgFmt(s.dose * n)} mg` : "pause"}</div>}
         </TableCell>
-        <TableCell>
-          <div className="flex justify-center">
-            <CountField value={s.doses} label={`Step ${i + 1} number of doses`} onChange={v => update(p => { p.steps[i].doses = v })} />
+        <TableCell className={plan.clicks ? "max-sm:col-start-2 max-sm:row-start-1" : undefined}>
+          <div className="flex justify-end">
+            <CountField value={s.doses} unit={s.doses === 1 ? "dose" : "doses"} label={`Step ${i + 1} number of doses`} onChange={v => update(p => { p.steps[i].doses = v })}
+              onRemove={removable ? () => update(p => { p.steps.splice(i, 1) }) : undefined} removeLabel={`Remove step ${i + 1}`} />
           </div>
-        </TableCell>
-        <TableCell className="max-sm:col-start-4">
-          {removable && <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove step ${i + 1}`} onClick={() => update(p => { p.steps.splice(i, 1) })}><X /></Button>}
         </TableCell>
       </TableRow>
     )
@@ -276,8 +291,7 @@ export default function App() {
             <TableHead className="w-28">Step</TableHead>
             <TableHead>{plan.clicks ? "Clicks per dose" : "Dose (mg)"}</TableHead>
             <TableHead className="w-24 text-end">{plan.clicks ? "Dose" : "Total"}</TableHead>
-            <TableHead className="w-32 text-center">Doses</TableHead>
-            <TableHead className="w-14"><span className="sr-only">Remove</span></TableHead>
+            <TableHead className="w-36 text-end">Doses</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>{indices.map(stepRow)}</TableBody>
@@ -505,22 +519,24 @@ export default function App() {
                     <CardHeader>
                       <CardTitle>Pen {pi + 1}</CardTitle>
                       <CardDescription className="@max-md/card-header:col-span-2">{[`${pen.strength} mg KwikPen`, ...(own.length ? [weekSpan(own[0][0].from!, own[own.length - 1][0].to!), plural(doses, "dose")] : [])].map((t, k) => <span key={k}>{k ? " · " : ""}<span className="whitespace-nowrap">{t}</span></span>)}</CardDescription>
-                      {/* The pen's settings sit together at the top right: golden dose (user's pick "B"), strength, remove.
-                          On a narrow card (phones) they move to their own row under the title, golden dose left, the rest right. */}
-                      <CardAction className="flex items-center gap-3 @max-md/card-header:col-span-2 @max-md/card-header:col-start-1 @max-md/card-header:row-span-1 @max-md/card-header:row-start-3 @max-md/card-header:mt-2 @max-md/card-header:justify-self-stretch">
+                      {/* Remove pen: in the title row, straight above the strength menu (user's pick "B2"). Pulled out by the
+                          icon's inset so the × itself, not its button, lines up with the menu's right edge. */}
+                      {plan.pens.length > 1 && (
+                        <Button variant="ghost" size="icon-sm" className="relative col-start-2 row-start-1 -my-1 -me-1.5 justify-self-end text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove pen ${pi + 1}`} onClick={() => update(p => {
+                          p.steps = p.steps.filter(s => s.pen !== pi); p.steps.forEach(s => { if (s.pen! > pi) s.pen!-- }); p.pens.splice(pi, 1)
+                        })}><X /></Button>
+                      )}
+                      {/* The pen's settings: golden dose (user's pick "B") and strength, under the remove ×. On a narrow card
+                          (phones) they move to their own row under the title, golden dose left, strength right. */}
+                      <CardAction className="row-span-1 row-start-2 flex items-center gap-3 @max-md/card-header:col-span-2 @max-md/card-header:col-start-1 @max-md/card-header:row-start-3 @max-md/card-header:mt-2 @max-md/card-header:justify-self-stretch">
                         <div className="flex items-center gap-2 @max-md/card-header:me-auto">
                           <Switch id={`gold-${pi}`} checked={!!pen.gold} onCheckedChange={c => update(p => { p.pens[pi].gold = c })} />
                           <Label htmlFor={`gold-${pi}`} className="text-xs font-normal whitespace-nowrap text-muted-foreground" title={`Counts the extra dose most pens hold (+${CLICKS} clicks); not guaranteed`}>Golden dose</Label>
                         </div>
                         <Select value={String(pen.strength)} onValueChange={v => update(p => { p.pens[pi].strength = +v })}>
-                          <SelectTrigger aria-label={`Pen ${pi + 1} strength`}><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="w-30" aria-label={`Pen ${pi + 1} strength`}><SelectValue /></SelectTrigger>
                           <SelectContent>{STRENGTHS.map(v => <SelectItem key={v} value={String(v)}>{v} mg</SelectItem>)}</SelectContent>
                         </Select>
-                        {plan.pens.length > 1 && (
-                          <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove pen ${pi + 1}`} onClick={() => update(p => {
-                            p.steps = p.steps.filter(s => s.pen !== pi); p.steps.forEach(s => { if (s.pen! > pi) s.pen!-- }); p.pens.splice(pi, 1)
-                          })}><X /></Button>
-                        )}
                       </CardAction>
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">

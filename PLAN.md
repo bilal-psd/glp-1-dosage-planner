@@ -14,20 +14,7 @@ Live at https://bilal-psd.github.io/glp-1-dosage-planner/ (the shadcn page, buil
 - Controls: browser number arrows hidden everywhere. Doses use `CountField` (− n +, pick "C"). Clicks are a slider plus a `CountField` with a "cl" unit (pick "B").
 - Pens: golden dose is per pen, as a "Golden dose" switch in the pen header next to strength (pick "B"); the old plan-wide setting carries over. On narrow cards the pen settings move to their own row.
 - Phone step rows: the clicks field lines up under the Doses field; same-month dates are shortened; "+ Add step" is centred.
-
-## In progress: phone layout of steps inside a pen card (paused)
-
-The problem the user raised: on a phone, it isn't immediately clear what the two numbers are or what the two control boxes do (Doses vs clicks per dose). The current layout is described in AGENTS.md under UI decisions.
-
-Three rounds of options were rejected; the user called each round worse than the one before. Don't repeat any of these:
-
-- Round 1: labelled lines ("Each dose" / "Number of doses"); a sentence ("Dial 15 cl … for 2 doses"); a one-line summary you tap to edit; two tiles ("Per dose" / "Doses").
-- Round 2 (all dropped the slider on phones; the user said removing the slider "defeats the purpose"): a table with column headers; "dose × doses = total"; a bar of the pen's injections above the table.
-- Round 3 (slider kept): headers with the slider under its column; a slider with a 15/30/45/60 scale and "2 doses" inside the field; an outlined "dial" box plus "Take it [2 doses]".
-
-What we know the user wants: keep the slider (it's how you dial a pen); keep the − / + field beside it; the two fields aligned with each other; no new controls placed "wherever". All the comparison pages were deleted at the user's request.
-
-**Next step:** don't generate options straight away. Ask the user what specifically is wrong with the current phone step layout (the labels, the order, the density, something else), or ask for a sketch or reference app they like. Then propose at most two options.
+- Pen step rows redesigned (picks "B" then "B2"): mg heads each step above its slider; Doses and clicks fields stacked on the right, aligned with the strength menu; remove-step × replaced by a bin on the Doses field at 1 dose; remove-pen × moved to the title row above the strength menu.
 
 ## Next (not started; confirm with the user first)
 
@@ -37,5 +24,4 @@ What we know the user wants: keep the slider (it's how you dial a pen); keep the
 
 ## Open decisions
 
-- Phone pen-step layout (above).
 - When the plotter ships to real users, stop auto-pushing (see AGENTS.md "How the user works with you").
