@@ -109,6 +109,10 @@ export default function App() {
   const [notesAnim, setNotesAnim] = useState<"none" | "in" | "out">("none")
   const [copied, setCopied] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
+  // TEMPORARY: two chart treatments side by side until the user picks one. "bands": a shaded band per dose level;
+  // "colour": the fill under the curve darkens with the dose. Remembered in this browser only.
+  const [chartStyle, setChartStyle] = useState<"bands" | "colour">(() => { try { return localStorage.getItem("glp1-plotter:chart") === "colour" ? "colour" : "bands" } catch { return "bands" } })
+  useEffect(() => { try { localStorage.setItem("glp1-plotter:chart", chartStyle) } catch { /* private mode */ } }, [chartStyle])
   const [plotWidth, setPlotWidth] = useState(0)
 
   useEffect(() => { if (location.search || location.hash) history.replaceState(null, "", location.pathname) }, [])
@@ -262,12 +266,24 @@ export default function App() {
 
   // A step's label above the chart only shows when its band is wide enough for the text (≈7.5px per character at 13px),
   // so neighbouring labels never run into each other as the chart narrows.
-  const bandLabel = (s: Step) => {
-    const pen = plan.clicks && firstOfPen.indexOf(s) > 0 ? `Pen ${s.pen! + 1} · ` : ""
-    const text = pen + (s.dose > 0 ? (plan.clicks ? `${s.clicks} cl` : `${mgFmt(s.dose)} mg`) : "pause")
-    const px = (Math.min(s.end!, end) - s.start!) / end * plotWidth
-    return px >= text.length * 7.5 + 12 ? text : ""
+  // Dose levels: consecutive steps with the same mg per dose form one run (even across a pen change, which gets its own
+  // marker). The chart labels runs in mg, whether doses are entered as mg or clicks. A pause is a run of its own.
+  const runs = steps.reduce<{ dose: number; start: number; end: number }[]>((acc, s) => {
+    const d = +s.dose.toFixed(4), last = acc[acc.length - 1]
+    if (last && last.dose === d && last.end === s.start) last.end = s.end!
+    else acc.push({ dose: d, start: s.start!, end: s.end! })
+    return acc
+  }, []).filter(r => r.start < end)
+  const maxRunDose = Math.max(...runs.map(r => r.dose), 1e-9)
+  // A run's label shows only when its band is wide enough for the text (≈7.5px per character at 13px).
+  const runLabel = (r: { dose: number; start: number; end: number }) => {
+    const text = r.dose > 0 ? `${mgFmt(r.dose)} mg` : "pause"
+    return (Math.min(r.end, end) - r.start) / end * plotWidth >= text.length * 7.5 + 12 ? text : ""
   }
+  // "colour" treatment: fill opacity rises with the dose, as hard stops along x in a horizontal gradient.
+  const fillAt = (dose: number) => (dose > 0 ? 0.08 + 0.42 * (dose / maxRunDose) : 0.03)
+  const doseStops = runs.flatMap(r => [[r.start / end, fillAt(r.dose)], [Math.min(r.end, end) / end, fillAt(r.dose)]])
+    .concat(runs.length && runs[runs.length - 1].end < end ? [[runs[runs.length - 1].end / end, 0.03], [1, 0.03]] : [])
 
   // ---- Dose rows
   const doseRows = steps.flatMap((s, i) => perStep[i].map(e => ({ e, s }))).sort((a, b) => a.e.t - b.e.t)
@@ -396,23 +412,36 @@ export default function App() {
         <Card className="xl:col-start-2">
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wider">Estimated amount in body (mg)</CardTitle>
-            <CardDescription>Sampled every 6 h{showToday ? " · amber line is today" : ""}{penStarts.length ? " · dashed lines are new pens" : ""}</CardDescription>
+            <CardDescription>{chartStyle === "bands" ? "Bands are dose levels" : "Shading darkens as the dose goes up"}{showToday ? " · amber line is today" : ""}{penStarts.length ? " · dashed lines are new pens" : ""}</CardDescription>
+            <CardAction>
+              <ToggleGroup className="grid grid-cols-[1fr_1fr]" type="single" variant="outline" size="sm" spacing={0} value={chartStyle} onValueChange={v => v && setChartStyle(v as "bands" | "colour")} aria-label="Chart style (comparison)">
+                <ToggleGroupItem value="bands">Dose bands</ToggleGroupItem>
+                <ToggleGroupItem value="colour">Dose colour</ToggleGroupItem>
+              </ToggleGroup>
+            </CardAction>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={el => { if (el && Math.abs(el.clientWidth - 40 - plotWidth) > 4) setPlotWidth(el.clientWidth - 40) }}>
               <AreaChart data={data} margin={{ top: 24, left: 0, right: 8 }}>
                 <CartesianGrid vertical={false} />
-                {/* Step bands sit in their own layer below the grid and the curve. Recharts 3 orders a layer by mount order,
-                    so without an explicit zIndex a band for a step added later was drawn over the curve. */}
-                {steps.filter(s => s.start! < end).map((s, i) => (
-                  <ReferenceArea key={i} zIndex={-150} x1={s.start!} x2={Math.min(s.end!, end)} fill={i % 2 ? "transparent" : "var(--band)"} fillOpacity={1} ifOverflow="hidden"
-                    label={{ value: bandLabel(s), position: "insideTopLeft", fill: "var(--muted-foreground)", fontSize: 13, dy: -20 }} />
+                <defs>
+                  <linearGradient id="dose-fill" x1="0" y1="0" x2="1" y2="0">
+                    {doseStops.map(([o, a], k) => <stop key={k} offset={o} style={{ stopColor: "var(--data)", stopOpacity: a }} />)}
+                  </linearGradient>
+                </defs>
+                {/* Dose-level bands (and their mg labels) sit in their own layer below the grid and the curve. Recharts 3 orders
+                    a layer by mount order, so without an explicit zIndex a band added later was drawn over the curve.
+                    In the "colour" treatment the bands are transparent and only carry the labels. */}
+                {runs.map((r, i) => (
+                  <ReferenceArea key={i} zIndex={-150} x1={r.start} x2={Math.min(r.end, end)} fill={chartStyle === "bands" && i % 2 === 0 ? "var(--band)" : "transparent"} fillOpacity={1} ifOverflow="hidden"
+                    label={{ value: runLabel(r), position: "insideTopLeft", fill: "var(--muted-foreground)", fontSize: 13, dy: -20 }} />
                 ))}
                 <XAxis dataKey="t" type="number" domain={[0, end]} ticks={ticks} tickFormatter={v => dayLabel(v)} tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis width={32} tickLine={false} axisLine={false} domain={[0, yMax]} ticks={yTicks} />
                 <ChartTooltip content={<ChartTooltipContent indicator="line" labelFormatter={(_, p) => { const t = p?.[0]?.payload?.t as number; return `${dayLabel(t, true)} · day ${t}` }} formatter={v => `${Number(v ?? 0).toFixed(2)} mg`} />} />
-                <Area dataKey="mg" type="linear" stroke="var(--color-mg)" fill="var(--color-mg)" fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />
-                {penStarts.map(s => <ReferenceLine key={s.pen} x={s.start!} stroke="var(--marker)" strokeWidth={1.5} strokeDasharray="3 4" />)}
+                <Area dataKey="mg" type="linear" stroke="var(--color-mg)" fill={chartStyle === "colour" ? "url(#dose-fill)" : "var(--color-mg)"} fillOpacity={chartStyle === "colour" ? 1 : 0.15} strokeWidth={2} isAnimationActive={false} />
+                {penStarts.map(s => <ReferenceLine key={s.pen} x={s.start!} stroke="var(--marker)" strokeWidth={1.5} strokeDasharray="3 4"
+                  label={{ value: `Pen ${s.pen! + 1} (${plan.pens[s.pen!].strength} mg)`, position: "insideBottomLeft", offset: 8, fill: "var(--muted-foreground)", fontSize: 13 }} />)}
                 {showToday && <ReferenceLine x={today!} stroke="var(--today)" strokeWidth={2} />}
               </AreaChart>
             </ChartContainer>
