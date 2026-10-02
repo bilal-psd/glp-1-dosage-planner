@@ -78,19 +78,24 @@ function initialPlan(): { plan: Plan; notes: string[] } {
 // A whole-number count with − and + at its edges and the number centred between them (user's pick "C" from a comparison).
 // Replaces a native number field, whose Chrome-only hover arrows pushed the number off centre. Typing is digits only;
 // a typed value applies when it's in range, and the field shows the current value again on blur.
-function CountField({ value, onChange, min = 1, max = 99, label }: { value: number; onChange: (v: number) => void; min?: number; max?: number; label: string }) {
+function CountField({ value, onChange, min = 1, max = 99, label, unit }: { value: number; onChange: (v: number) => void; min?: number; max?: number; label: string; unit?: string }) {
   const [draft, setDraft] = useState(String(value))
   const [shown, setShown] = useState(value)
   if (value !== shown) { setShown(value); setDraft(String(value)) }
   const set = (v: number) => onChange(Math.min(max, Math.max(min, v)))
   const btn = "grid h-full w-8 shrink-0 place-items-center text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground disabled:pointer-events-none disabled:opacity-40"
   return (
-    <div className="grid h-9 w-26 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center overflow-hidden rounded-lg border border-input text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-muted">
+    <div className="grid h-9 w-26 shrink-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center overflow-hidden rounded-lg border border-input text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-muted">
       <button type="button" className={btn} aria-label={`${label}: one fewer`} disabled={value <= min} onClick={() => set(value - 1)}><Minus className="size-3.5" strokeWidth={1.5} /></button>
-      <input type="text" inputMode="numeric" value={draft} aria-label={label} className="w-full min-w-0 bg-transparent text-center tabular-nums outline-none"
+      {/* With a unit, number and unit are centred together; the number field is sized to its digits. */}
+      <label className="flex min-w-0 cursor-text items-baseline justify-center gap-1">
+      <input type="text" inputMode="numeric" value={draft} aria-label={label} className={`min-w-0 bg-transparent text-center tabular-nums outline-none ${unit ? "" : "w-full"}`}
+        style={unit ? { width: `${Math.max(draft.length, 1) + 0.25}ch` } : undefined}
         onChange={e => { const t = e.target.value.replace(/\D/g, "").slice(0, 2); setDraft(t); const v = +t; if (t !== "" && v >= min && v <= max) onChange(v) }}
         onKeyDown={e => { if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); set(value + (e.key === "ArrowUp" ? 1 : -1)) } }}
         onBlur={() => setDraft(String(value))} />
+      {unit && <span className="text-muted-foreground" aria-hidden="true">{unit}</span>}
+      </label>
       <button type="button" className={btn} aria-label={`${label}: one more`} disabled={value >= max} onClick={() => set(value + 1)}><Plus className="size-3.5" strokeWidth={1.5} /></button>
     </div>
   )
@@ -224,10 +229,10 @@ export default function App() {
         </TableCell>
         <TableCell className={plan.clicks ? "max-sm:col-span-4 max-sm:col-start-1 max-sm:row-start-2" : undefined}>
           {plan.clicks ? (
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Step ${i + 1}: one click less`} onClick={() => setClicksTo((s.clicks ?? 0) - 1)}><Minus /></Button>
+            // Slider for big moves; the clicks field beside it for exact clicks, with − and + next to the number (user's pick "B").
+            <div className="flex items-center gap-4">
               <Slider className="min-w-24" min={0} max={CLICKS} step={1} value={[s.clicks ?? 0]} onValueChange={([v]) => setClicksTo(v)} aria-label={`Step ${i + 1} clicks per dose`} />
-              <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Step ${i + 1}: one click more`} onClick={() => setClicksTo((s.clicks ?? 0) + 1)}><Plus /></Button>
+              <CountField value={s.clicks ?? 0} min={0} max={CLICKS} unit="cl" label={`Step ${i + 1} clicks per dose`} onChange={setClicksTo} />
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -239,7 +244,7 @@ export default function App() {
         </TableCell>
         <TableCell className={plan.clicks ? "text-end" : "text-end max-sm:hidden"}>
           {plan.clicks
-            ? <><div className="font-semibold">{s.clicks} cl</div><div className="text-xs text-muted-foreground">{s.clicks ? `${mgFmt(s.dose)} mg` : "pause"}</div></>
+            ? <div className="font-semibold">{s.clicks ? `${mgFmt(s.dose)} mg` : "pause"}</div>
             : <div className="font-semibold">{s.dose > 0 ? `${mgFmt(s.dose * n)} mg` : "pause"}</div>}
         </TableCell>
         <TableCell>

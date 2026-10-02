@@ -39,7 +39,7 @@ Computation (all done in the browser at run time):
 
 - One medication for the whole plan, plus one global "every N days" interval. Multiple medications, offset days and accumulate/compare modes were removed on purpose.
 - Dose input switch ("Enter doses as"): "mg" or "KwikPen clicks" ("Pen clicks" on the classic page).
-- Pen clicks mode only for tirzepatide (KwikPen). One injection = 60 clicks = the pen's labelled strength, so `mg = clicks / 60 × strength`. Slider 0–60 with −/+ buttons; 0 = pause.
+- Pen clicks mode only for tirzepatide (KwikPen). One injection = 60 clicks = the pen's labelled strength, so `mg = clicks / 60 × strength`. Each step has a 0–60 slider for big moves and, beside it, a `CountField` showing the clicks ("30 cl") with − and + next to the number for fine-tuning (user's pick "B"; the old −/+ at both ends of the slider were a row apart). 0 = pause. The Dose column shows only the mg.
 - In clicks mode, pens are a level above steps. Each pen has a strength (2.5–15 mg), its own steps, "+ Add step", and a meter plus footer showing clicks used and clicks/mg left (red when over capacity). A pen always keeps at least one step.
 - Pen capacity: 4 doses = 240 clicks. "Count golden dose" checkbox (off by default, applies to all pens) adds one extra dose → 300 clicks.
 - Changing a pen's strength keeps clicks and recomputes mg.
