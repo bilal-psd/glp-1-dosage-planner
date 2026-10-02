@@ -71,6 +71,8 @@ Computation (all done in the browser at run time):
 - **Design decisions go through comparisons.** For any non-trivial visual change the user wants a few working options to compare, then picks one by letter ("B1", "C", …). Build the pick exactly; don't add extras they didn't choose. Record the pick in the UI decisions above.
 - **Don't place controls "wherever there's room".** The user rejected a checkbox dropped under a meter as not designed. Work out where a control belongs (what it changes, what it sits next to) before placing it.
 - **Ask before a third round.** On the phone pen-step redesign (see PLAN.md) three rounds of options were rejected, each judged worse. When a round is rejected, ask what specifically is wrong before generating more.
+- **What worked:** the user's own diagnosis first ("the × wastes space", "clicks and mg are detached"), then two or three options that share one skeleton and differ in one variable, shown as interactive mockups with real data at 320/390/430px, reviewed in the browser before sending. They picked within one round and then asked for small follow-ups ("B, but…"). Keep comparisons that tight.
+- When a choice is genuinely theirs (where a destructive control goes, what Reset leaves, which PDF approach), ask with AskUserQuestion and a recommended option, rather than guessing.
 - The impeccable design hook flags Geist as an overused font on every page. Geist is the project's font on purpose; leave it and don't add an ignore rule unless the user asks.
 
 ## Gotchas

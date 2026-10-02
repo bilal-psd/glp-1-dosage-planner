@@ -19,10 +19,16 @@ Live at https://bilal-psd.github.io/glp-1-dosage-planner/ (the shadcn page, buil
 
 ## Next (not started; confirm with the user first)
 
+- Offered, not answered: a warning before opening a share link replaces a saved plan that differs from the example ("Keep mine" / "Load theirs"). Today a share link silently overwrites the saved plan.
+- Offered, not answered: undo for removing a step (bin) or a pen (×); both remove instantly. The pen-card mockup showed a "Pen 2 and its steps removed · Undo" row.
+- Bug found while testing, not fixed: a plan that's loaded (saved state, share link) or imported isn't stretched to fit its steps. Only `update()` extends `weeks`, so a plan whose steps run past its chart length shows the doses cut off until the next edit. The pen header ("5 doses" for a 40-dose step) and step totals then count only the doses inside the chart, while the step's dates list all of them. Probably run `stack()` + extend on load/import.
+
 - Narrow charts can hide a dose's mg label (the band is too thin), and there's no legend any more. A proposed fix, not yet answered: show the dose in the chart's hover tooltip ("19 Sept · 3.67 mg dose").
 - Two medications at once (from AGENTS.md "Ideas not yet built").
 - Decide whether to delete `/classic/` (frozen; it still says "Pen clicks" and uses the plan-wide golden dose).
 
 ## Open decisions
+
+- Comparison pages from this session (artifacts, private to the user): pen step rows https://claude.ai/artifact/9P1MqVWzTHeguPXGnrfJrr, reset/share/export https://claude.ai/artifact/JrMpsZPvsEifEU9CBMu2H4. Their scratch HTML lived in the session's temp folder and is gone; the picks are recorded in AGENTS.md.
 
 - When the plotter ships to real users, stop auto-pushing (see AGENTS.md "How the user works with you").
