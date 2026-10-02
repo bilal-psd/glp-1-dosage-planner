@@ -42,6 +42,10 @@ test("plans saved with weeks per step become dose counts",()=>{
  assert.deepEqual(p.steps,EXAMPLE.steps);
  assert.deepEqual(upgradePlan({freq:7,steps:[{dose:1,doses:3}]}).steps,[{dose:1,doses:3}])});
 
+test("the old plan-wide golden dose setting becomes each pen's own",()=>{
+ assert.deepEqual(upgradePlan({freq:7,gold:true,pens:[{strength:5},{strength:10,gold:false}],steps:[{dose:1,doses:1}]}).pens,[{strength:5,gold:true},{strength:10,gold:false}]);
+ assert.deepEqual(upgradePlan({freq:7,pens:[{strength:5}],steps:[{dose:1,doses:1}]}).pens,[{strength:5,gold:false}])});
+
 test("amount in body for the example plan",()=>{
  const ev=example().flatMap(s=>doseEvents(s,7,12)),pts=simulate(ev,TIRZ,12);
  assert.equal(pts.length,12*28+1);

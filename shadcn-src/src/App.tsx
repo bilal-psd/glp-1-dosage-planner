@@ -29,7 +29,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 type Drug = { halfLife: number; bioavailability: number; volumeOfDistribution: number; tmax: number; name: string }
 // A step is a dose repeated `doses` times; layout() adds start/end (days, end-exclusive) and from/to (calendar weeks).
 type Step = { dose: number; doses: number; pen?: number; clicks?: number; start?: number; end?: number; from?: number; to?: number }
-type Plan = { start: string; weeks: number; drug: string; freq: number; clicks: boolean; gold: boolean; pens: { strength: number }[]; steps: Step[] }
+type Plan = { start: string; weeks: number; drug: string; freq: number; clicks: boolean; gold: boolean; pens: { strength: number; gold?: boolean }[]; steps: Step[] }
 type DoseEvent = { t: number; dose: number }
 
 const DRUGS = M.DRUGS as Record<string, Drug>
@@ -172,7 +172,8 @@ export default function App() {
   const startDate = dateAt(0) ?? undefined
   const end = plan.weeks * 7
   const clicksAllowed = plan.drug === TIRZ
-  const penCap = PEN_CLICKS + (plan.gold ? CLICKS : 0)
+  // A pen holds 4 doses (240 clicks); counting its golden dose (per pen, off by default, not guaranteed) adds one more.
+  const penCap = (pen: { gold?: boolean }) => PEN_CLICKS + (pen.gold ? CLICKS : 0)
   const next = today == null ? undefined : events.find(e => e.t >= Math.floor(today))
   const nextStep = next && steps[perStep.findIndex(l => l.includes(next))]
   const peak = pts.reduce((m, p) => (p[1] > m[1] ? p : m), [0, 0])
@@ -373,7 +374,7 @@ export default function App() {
       )}
 
       {/* Settings: two columns on phones, four in a mid-width card, one row once everything fits.
-          Sized by the card (container query), not the viewport. "Count golden dose" sits under the toggle it belongs to. */}
+          Sized by the card (container query), not the viewport. */}
       <Card className="@container">
         <CardContent className="grid grid-cols-2 items-start gap-4 @lg:grid-cols-4 @lg:gap-6 @[69rem]:grid-cols-[minmax(0,14rem)_minmax(0,10rem)_minmax(0,10rem)_minmax(0,10rem)_minmax(max-content,1fr)]">
           <Field className="col-span-2 @[69rem]:col-span-1">
@@ -413,12 +414,6 @@ export default function App() {
               <ToggleGroupItem value="mg">mg</ToggleGroupItem>
               <ToggleGroupItem value="clicks" disabled={!clicksAllowed} title={clicksAllowed ? undefined : "KwikPen clicks are for tirzepatide KwikPens"}>KwikPen clicks</ToggleGroupItem>
             </ToggleGroup>
-            {plan.clicks && (
-              <div className="flex h-9 items-center gap-2 pointer-coarse:h-11">
-                <Checkbox id="gold" checked={plan.gold} onCheckedChange={c => update(p => { p.gold = c === true })} />
-                <Label htmlFor="gold">Count golden dose</Label>
-              </div>
-            )}
           </Field>
         </CardContent>
       </Card>
@@ -497,7 +492,7 @@ export default function App() {
                 const own = steps.map((s, i) => [s, i] as const).filter(([s]) => s.pen === pi)
                 const used = own.reduce((n, [s, i]) => n + (s.clicks ?? 0) * perStep[i].length, 0)
                 const doses = own.reduce((n, [, i]) => n + perStep[i].length, 0)
-                const left = penCap - used
+                const cap = penCap(pen), left = cap - used
                 return (
                   <Card key={pi}>
                     <CardHeader>
@@ -517,10 +512,14 @@ export default function App() {
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
                       <div className="flex flex-col gap-3">
-                        <Progress className={left < 0 ? "[&_[data-slot=progress-indicator]]:bg-destructive" : undefined} value={Math.min(100, (used / penCap) * 100)} aria-label={`Pen ${pi + 1} clicks used`} />
+                        <Progress className={left < 0 ? "[&_[data-slot=progress-indicator]]:bg-destructive" : undefined} value={Math.min(100, (used / cap) * 100)} aria-label={`Pen ${pi + 1} clicks used`} />
                         <div className={`flex flex-wrap justify-between gap-2 text-xs ${left < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                          <span><span className="font-semibold text-foreground">{used}</span> / {penCap} clicks used</span>
+                          <span><span className="font-semibold text-foreground">{used}</span> / {cap} clicks used</span>
                           <span>{left >= 0 ? `${left} clicks left · ${mgFmt((left * pen.strength) / CLICKS)} mg` : `${-left} clicks over (${mgFmt((-left * pen.strength) / CLICKS)} mg short). Add a pen or move steps.`}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox id={`gold-${pi}`} checked={!!pen.gold} onCheckedChange={c => update(p => { p.pens[pi].gold = c === true })} />
+                          <Label htmlFor={`gold-${pi}`} className="text-xs font-normal text-muted-foreground">Count golden dose (+{CLICKS} clicks)</Label>
                         </div>
                       </div>
                       {stepTable(own.map(([, i]) => i))}

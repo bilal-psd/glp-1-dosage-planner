@@ -41,7 +41,7 @@ Computation (all done in the browser at run time):
 - Dose input switch ("Enter doses as"): "mg" or "KwikPen clicks" ("Pen clicks" on the classic page).
 - Pen clicks mode only for tirzepatide (KwikPen). One injection = 60 clicks = the pen's labelled strength, so `mg = clicks / 60 × strength`. Each step has a 0–60 slider for big moves and, beside it, a `CountField` showing the clicks ("30 cl") with − and + next to the number for fine-tuning (user's pick "B"; the old −/+ at both ends of the slider were a row apart). 0 = pause. The Dose column shows only the mg.
 - In clicks mode, pens are a level above steps. Each pen has a strength (2.5–15 mg), its own steps, "+ Add step", and a meter plus footer showing clicks used and clicks/mg left (red when over capacity). A pen always keeps at least one step.
-- Pen capacity: 4 doses = 240 clicks. "Count golden dose" checkbox (off by default, applies to all pens) adds one extra dose → 300 clicks.
+- Pen capacity: 4 doses = 240 clicks. Each pen has its own "Count golden dose" checkbox under its meter (off by default; a new pen starts off) that adds one extra dose → 300 clicks. It used to be one setting for all pens (`plan.gold`); `upgradePlan()` copies that to pens with no setting of their own, and `plan.gold` stays for the classic page.
 - Changing a pen's strength keeps clicks and recomputes mg.
 - Chart colouring (user picked "B1" from a comparison): the area under the curve is coloured by dose level, not by step. Consecutive steps with the same mg form one level, even across a pen change. Each distinct dose gets a colour by its position from lowest to highest, cycling through six steps of the data teal (deep → light). Neighbouring levels never share a colour: the later one moves to the next free colour and keeps it everywhere, so a dose always has one colour. Pauses and the time after the last dose are neutral; the line stays teal; no divider lines between colours. Labels above the chart show each level's mg (never clicks), with no separate legend (the user removed it as redundant), and pen changes are dashed lines labelled "Pen N (strength mg)".
 - Number fields never show the browser's up/down arrows (Chrome draws them on hover, inside the field, which shifts the number). A step's dose count uses `CountField`: − and + at its edges, the number centred between them, digits only (user's pick "C" from a comparison). Dose every / Chart length use `Stepper`.
@@ -60,5 +60,4 @@ Computation (all done in the browser at run time):
 
 ## Ideas not yet built
 
-- Per-pen golden dose toggle.
 - Supporting two medications at the same time (would need one step sequence per medication).
