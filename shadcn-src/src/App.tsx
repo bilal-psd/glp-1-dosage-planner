@@ -237,8 +237,8 @@ export default function App() {
       if (on) {
         if (!p.pens.length || p.steps.some(s => s.pen == null || !p.pens[s.pen])) {
           const max = Math.max(...p.steps.map(s => s.dose)), str = STRENGTHS.find(v => v >= max) ?? 15
+          // No note: the pen card shows its strength, and its meter turns red with a hint if the steps don't fit (user's call).
           p.pens = [{ strength: str }]; p.steps.forEach(s => { s.pen = 0 })
-          msg.push(`All steps are on one ${str} mg pen. If it runs out, change a pen's strength or add a pen.`)
         }
         p.steps.forEach((s, i) => {
           const str = p.pens[s.pen!].strength, before = s.dose
