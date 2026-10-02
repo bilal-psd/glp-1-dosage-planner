@@ -143,3 +143,7 @@ body { font-variant-numeric: tabular-nums; }
 /* Icon stroke follows the weight of the text beside it: 1.5 next to regular (400), 2 next to semibold. */
 [data-slot=button] svg.lucide, [data-slot=select-trigger] svg.lucide { stroke-width: 1.5; }
 [data-slot=button][data-variant=default] svg.lucide { stroke-width: 2; }
+/* No browser up/down arrows on number fields: Chrome draws them only on hover, inside the field, which shifts the number.
+   Counts use CountField's own − / +; keyboard arrow keys still work on every number field. */
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

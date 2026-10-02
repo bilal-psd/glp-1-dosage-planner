@@ -44,6 +44,7 @@ Computation (all done in the browser at run time):
 - Pen capacity: 4 doses = 240 clicks. "Count golden dose" checkbox (off by default, applies to all pens) adds one extra dose → 300 clicks.
 - Changing a pen's strength keeps clicks and recomputes mg.
 - Chart colouring (user picked "B1" from a comparison): the area under the curve is coloured by dose level, not by step. Consecutive steps with the same mg form one level, even across a pen change. Each distinct dose gets a colour by its position from lowest to highest, cycling through six steps of the data teal (deep → light). Neighbouring levels never share a colour: the later one moves to the next free colour and keeps it everywhere, so a dose always has one colour. Pauses and the time after the last dose are neutral; the line stays teal; no divider lines between colours. Labels above the chart show each level's mg (never clicks), with no separate legend (the user removed it as redundant), and pen changes are dashed lines labelled "Pen N (strength mg)".
+- Number fields never show the browser's up/down arrows (Chrome draws them on hover, inside the field, which shifts the number). A step's dose count uses `CountField`: − and + at its edges, the number centred between them, digits only (user's pick "C" from a comparison). Dose every / Chart length use `Stepper`.
 - Each step shows the dates of its first and last dose (a pause shows the dates it covers); its dose count is the step's own input.
 
 ## Persistence and loading
