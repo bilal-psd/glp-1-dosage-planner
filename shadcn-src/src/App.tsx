@@ -402,8 +402,10 @@ export default function App() {
             <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={el => { if (el && Math.abs(el.clientWidth - 40 - plotWidth) > 4) setPlotWidth(el.clientWidth - 40) }}>
               <AreaChart data={data} margin={{ top: 24, left: 0, right: 8 }}>
                 <CartesianGrid vertical={false} />
+                {/* Step bands sit in their own layer below the grid and the curve. Recharts 3 orders a layer by mount order,
+                    so without an explicit zIndex a band for a step added later was drawn over the curve. */}
                 {steps.filter(s => s.start! < end).map((s, i) => (
-                  <ReferenceArea key={i} x1={s.start!} x2={Math.min(s.end!, end)} fill={i % 2 ? "transparent" : "var(--band)"} fillOpacity={1} ifOverflow="hidden"
+                  <ReferenceArea key={i} zIndex={-150} x1={s.start!} x2={Math.min(s.end!, end)} fill={i % 2 ? "transparent" : "var(--band)"} fillOpacity={1} ifOverflow="hidden"
                     label={{ value: bandLabel(s), position: "insideTopLeft", fill: "var(--muted-foreground)", fontSize: 13, dy: -20 }} />
                 ))}
                 <XAxis dataKey="t" type="number" domain={[0, end]} ticks={ticks} tickFormatter={v => dayLabel(v)} tickLine={false} axisLine={false} tickMargin={8} />
