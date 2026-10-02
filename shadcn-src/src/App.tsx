@@ -230,8 +230,11 @@ export default function App() {
   // Clicks each pen's steps use (doses inside the chart), and whether any pen still has medicine in it.
   const penUsed = plan.clicks ? plan.pens.map((_, pi) => steps.reduce((n, s, i) => n + (s.pen === pi ? (s.clicks ?? 0) * perStep[i].length : 0), 0)) : []
   const penLeft = plan.pens.some((pen, pi) => penCap(pen) > penUsed[pi])
-  const firstOfPen = plan.clicks ? plan.pens.map((_, pi) => steps.find(s => s.pen === pi)) : []
-  const penStarts = firstOfPen.slice(1).filter(Boolean) as Step[]
+  // Each pen's span on the chart (its first step's start to its last step's end), for the pen row under the dates.
+  const penSpans = plan.clicks ? plan.pens.flatMap((pen, pi) => {
+    const own = steps.filter(s => s.pen === pi && s.start! < end)
+    return own.length ? [{ pi, start: own[0].start!, end: Math.min(own[own.length - 1].end!, end), label: `Pen ${pi + 1} · ${pen.strength} mg` }] : []
+  }) : []
 
   function setClicks(on: boolean) {
     if (on === plan.clicks || (on && !clicksAllowed)) return
@@ -443,7 +446,7 @@ export default function App() {
       xTicks: ticks.map(t => ({ t, label: dayLabel(t, false, loc) })),
       bands: runs.map(r => ({ start: r.start, end: r.end, fill: r.dose > 0 ? PAPER_DOSE_COLOURS[DOSE_COLOURS.indexOf(doseColour.get(r.dose)!)] : PAPER_PAUSE, label: r.dose > 0 ? `${mgFmt(r.dose)} mg` : "pause" }))
         .concat(last && last.end < end ? [{ start: last.end, end, fill: PAPER_AFTER, label: "" }] : []),
-      markers: penStarts.map(s => ({ t: s.start!, label: `Pen ${s.pen! + 1} (${plan.pens[s.pen!].strength} mg)` })),
+      pens: penSpans.map(({ start, end, label }) => ({ start, end, label })),
       steps: {
         head: ["Step", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Per dose", "Doses", "Dates", "Total"],
         right: [false, ...(plan.clicks ? [false, true] : []), true, true, false, true],
@@ -567,7 +570,7 @@ export default function App() {
         <Card className="xl:col-start-2">
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wider">Estimated amount in body (mg)</CardTitle>
-            <CardDescription>Shading shows the dose{showToday ? " · amber line is today" : ""}{penStarts.length ? " · dashed lines are new pens" : ""}</CardDescription>
+            <CardDescription>Shading shows the dose{showToday ? " · amber line is today" : ""}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={chartRef}>
@@ -588,11 +591,22 @@ export default function App() {
                 <YAxis width={32} tickLine={false} axisLine={false} domain={[0, yMax]} ticks={yTicks} />
                 <ChartTooltip content={<ChartTooltipContent indicator="line" labelFormatter={(_, p) => { const t = p?.[0]?.payload?.t as number; return `${dayLabel(t, true)} · day ${t}` }} formatter={v => `${Number(v ?? 0).toFixed(2)} mg`} />} />
                 <Area dataKey="mg" type="linear" stroke="var(--color-mg)" fill="url(#dose-fill)" fillOpacity={1} strokeWidth={2} isAnimationActive={false} />
-                {penStarts.map(s => <ReferenceLine key={s.pen} x={s.start!} stroke="var(--marker)" strokeWidth={1.5} strokeDasharray="3 4"
-                  label={{ value: `Pen ${s.pen! + 1} (${plan.pens[s.pen!].strength} mg)`, position: "insideBottomLeft", offset: 8, fill: "var(--foreground)", fontSize: 13 }} />)}
                 {showToday && <ReferenceLine x={today!} stroke="var(--today)" strokeWidth={2} />}
               </AreaChart>
             </ChartContainer>
+            {/* Pens: a row under the dates, a hairline as wide as each pen's time in use with its name below. Nothing on
+                the plot itself, so the pens stay quiet. Offsets match the plot (y axis 32px, right margin 8px). A name that
+                doesn't fit its span shortens to "Pen N". */}
+            {penSpans.length > 0 && (
+              <div className="relative mt-1 h-6 text-xs text-muted-foreground" style={{ marginLeft: 32, marginRight: 8 }} aria-label="Pens">
+                {penSpans.map(p => (
+                  <div key={p.pi} className="absolute top-0 flex flex-col gap-1 overflow-hidden" style={{ left: `${p.start / end * 100}%`, width: `${(p.end - p.start) / end * 100}%` }}>
+                    <div className="mx-px h-px bg-muted-foreground/40" />
+                    <span className="truncate ps-0.5">{(p.end - p.start) / end * plotWidth >= p.label.length * 7.5 + 4 ? p.label : p.label.split(" · ")[0]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
           <CardFooter className="text-xs text-muted-foreground">Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice.</CardFooter>
         </Card>

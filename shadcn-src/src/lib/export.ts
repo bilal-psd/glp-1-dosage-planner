@@ -14,7 +14,7 @@ export type ExportData = {
   yTicks: number[]
   xTicks: { t: number; label: string }[]
   bands: { start: number; end: number; fill: string; label: string }[]
-  markers: { t: number; label: string }[]
+  pens: { start: number; end: number; label: string }[]  // a row under the dates; empty in mg mode
   steps: Table
   doses: Table
   disclaimer: string
@@ -35,7 +35,9 @@ export function chartSvg(d: ExportData, w: number, h: number, framed: boolean) {
   const top = framed ? 80 : 0, bottom = framed ? 52 : 0, pad = framed ? 32 : 0
   const fs = framed ? 14 : 9
   // Room above the plot for two rows of dose labels.
-  const L = pad + 28, R = w - pad - 8, T = top + 8 + fs * 2.8, B = h - bottom - fs - 12
+  // Room below for the dates and, with pens, the pen row.
+  const penRow = d.pens.length ? fs * 2 + 6 : 0
+  const L = pad + 28, R = w - pad - 8, T = top + 8 + fs * 2.8, B = h - bottom - fs - 12 - penRow
   const x = (t: number) => L + (t / d.end) * (R - L), y = (v: number) => B - (v / d.yMax) * (B - T)
   let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="${FONT}">`
   s += `<rect width="${w}" height="${h}" fill="#ffffff"/>`
@@ -64,15 +66,13 @@ export function chartSvg(d: ExportData, w: number, h: number, framed: boolean) {
     labelEnds[row] = lx + tw + fs * 0.6
     s += `<text x="${lx}" y="${T - 8 - row * fs * 1.4}" font-size="${fs}" font-weight="600" fill="${INK}">${esc(b.label)}</text>`
   }
-  // Pen markers: a dashed line each; a label that would overlap the one before it moves up a line.
-  const rowEnds: number[] = []
-  for (const m of d.markers) {
-    const lx = x(m.t) + 6, tw = m.label.length * fs * 0.55
-    let row = rowEnds.findIndex(e => lx >= e)
-    if (row < 0) row = rowEnds.length
-    rowEnds[row] = lx + tw + fs
-    s += `<line x1="${x(m.t)}" x2="${x(m.t)}" y1="${T}" y2="${B}" stroke="${MARK}" stroke-width="1.25" stroke-dasharray="3 4"/>`
-    s += `<text x="${lx}" y="${B - 8 - row * fs * 1.4}" font-size="${fs}" fill="${INK}" stroke="#ffffff" stroke-width="3" paint-order="stroke">${esc(m.label)}</text>`
+  // Pens: a hairline as wide as each pen's time in use, its name below; the name shortens to "Pen N", or goes, if it doesn't fit.
+  const py = B + fs + 6 + fs * 0.9
+  for (const p of d.pens) {
+    const x0 = x(p.start) + 1, x1 = x(Math.min(p.end, d.end)) - 1, room = x1 - x0 - 2
+    s += `<line x1="${x0}" x2="${x1}" y1="${py}" y2="${py}" stroke="${MARK}" stroke-width="1"/>`
+    const label = [p.label, p.label.split(" · ")[0]].find(l => l.length * fs * 0.55 <= room)
+    if (label) s += `<text x="${x0 + 2}" y="${py + fs + 3}" font-size="${fs}" fill="${INK2}">${esc(label)}</text>`
   }
   s += `<path d="${line}" fill="none" stroke="${LINE}" stroke-width="${framed ? 2.5 : 1.5}" stroke-linejoin="round"/>`
   if (framed) s += `<text x="${pad}" y="${h - pad + 8}" font-size="13" fill="${INK2}">${esc(d.disclaimer)}</text>`
