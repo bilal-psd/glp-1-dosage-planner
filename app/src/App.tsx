@@ -1,5 +1,5 @@
-// The GLP-1 plotter (the main page), built from shadcn/ui components. The earlier hand-styled page is frozen at ../classic/.
-// Same maths (../model.js), same saved plan (localStorage "glp1-plotter:v1") and same share-link format as that page.
+// The GLP-1 plotter, built from shadcn/ui components. The maths and scheduling rules are in ../model.js; the plan is saved
+// in localStorage "glp1-plotter:v1" and shared as a #plan= link.
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
 import { CalendarDays, Check, Download, FileText, Image as ImageIcon, Link2, Minus, Plus, Trash2, Upload, X } from "lucide-react"

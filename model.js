@@ -26,7 +26,7 @@ export function layout(steps,freq){let k=0;steps.forEach(s=>{s.doses=Math.max(1,
 // old rule produced (every freq days from the step's first day, end-exclusive): ⌈weeks·7 / freq⌉. Same dose days at freq 7.
 export const weeksToDoses=(weeks,freq)=>Math.max(1,Math.ceil(Math.max(1,Math.round(weeks)||1)*7/freq-1e-9));
 // "Count golden dose" used to be one setting for all pens (plan.gold); it is now per pen (pen.gold). Pens without their own
-// setting take the old plan-wide one. plan.gold is left in place for the frozen classic page.
+// setting take the old plan-wide one. plan.gold is left in place, so older saved plans and links still read the same.
 export function upgradePlan(plan){plan.steps.forEach(s=>{if(s.doses==null&&s.weeks!=null)s.doses=weeksToDoses(s.weeks,plan.freq||7);delete s.weeks});
  (plan.pens||[]).forEach(p=>{if(p.gold==null)p.gold=!!plan.gold});return plan}
 export const toClicks=(mg,strength)=>Math.min(CLICKS,Math.max(0,Math.round(mg/strength*CLICKS)));

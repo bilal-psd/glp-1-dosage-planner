@@ -12,11 +12,11 @@
       "port": 5173
     },
     {
-      "name": "shadcn",
+      "name": "dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "shadcn-src",
+        "app",
         "run",
         "dev"
       ],
