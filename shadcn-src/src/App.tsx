@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
@@ -497,8 +497,14 @@ export default function App() {
                   <Card key={pi}>
                     <CardHeader>
                       <CardTitle>Pen {pi + 1}</CardTitle>
-                      <CardDescription>{[`${pen.strength} mg KwikPen`, ...(own.length ? [weekSpan(own[0][0].from!, own[own.length - 1][0].to!), plural(doses, "dose")] : [])].map((t, k) => <span key={k}>{k ? " · " : ""}<span className="whitespace-nowrap">{t}</span></span>)}</CardDescription>
-                      <CardAction className="flex items-center gap-2">
+                      <CardDescription className="@max-md/card-header:col-span-2">{[`${pen.strength} mg KwikPen`, ...(own.length ? [weekSpan(own[0][0].from!, own[own.length - 1][0].to!), plural(doses, "dose")] : [])].map((t, k) => <span key={k}>{k ? " · " : ""}<span className="whitespace-nowrap">{t}</span></span>)}</CardDescription>
+                      {/* The pen's settings sit together at the top right: golden dose (user's pick "B"), strength, remove.
+                          On a narrow card (phones) they move to their own row under the title, golden dose left, the rest right. */}
+                      <CardAction className="flex items-center gap-3 @max-md/card-header:col-span-2 @max-md/card-header:col-start-1 @max-md/card-header:row-span-1 @max-md/card-header:row-start-3 @max-md/card-header:mt-2 @max-md/card-header:justify-self-stretch">
+                        <div className="flex items-center gap-2 @max-md/card-header:me-auto">
+                          <Switch id={`gold-${pi}`} checked={!!pen.gold} onCheckedChange={c => update(p => { p.pens[pi].gold = c })} />
+                          <Label htmlFor={`gold-${pi}`} className="text-xs font-normal whitespace-nowrap text-muted-foreground" title={`Counts the extra dose most pens hold (+${CLICKS} clicks); not guaranteed`}>Golden dose</Label>
+                        </div>
                         <Select value={String(pen.strength)} onValueChange={v => update(p => { p.pens[pi].strength = +v })}>
                           <SelectTrigger aria-label={`Pen ${pi + 1} strength`}><SelectValue /></SelectTrigger>
                           <SelectContent>{STRENGTHS.map(v => <SelectItem key={v} value={String(v)}>{v} mg</SelectItem>)}</SelectContent>
@@ -516,10 +522,6 @@ export default function App() {
                         <div className={`flex flex-wrap justify-between gap-2 text-xs ${left < 0 ? "text-destructive" : "text-muted-foreground"}`}>
                           <span><span className="font-semibold text-foreground">{used}</span> / {cap} clicks used</span>
                           <span>{left >= 0 ? `${left} clicks left · ${mgFmt((left * pen.strength) / CLICKS)} mg` : `${-left} clicks over (${mgFmt((-left * pen.strength) / CLICKS)} mg short). Add a pen or move steps.`}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Checkbox id={`gold-${pi}`} checked={!!pen.gold} onCheckedChange={c => update(p => { p.pens[pi].gold = c === true })} />
-                          <Label htmlFor={`gold-${pi}`} className="text-xs font-normal text-muted-foreground">Count golden dose (+{CLICKS} clicks)</Label>
                         </div>
                       </div>
                       {stepTable(own.map(([, i]) => i))}
