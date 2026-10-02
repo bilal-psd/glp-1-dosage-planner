@@ -7,7 +7,9 @@ export const TIRZ="tirzepatide-injection",CLICKS=60,PEN_CLICKS=240,STRENGTHS=[2.
 // ka solved from Tmax with Newton's method on Tmax = ln(ka/ke)/(ka−ke).
 export function solveKa(tmax,ke){let ka=2.5/tmax;for(let n=0;n<20;n++){const d=ka-ke;if(Math.abs(d)<1e-10)break;const L=Math.log(ka/ke),f=L/d-tmax,fp=(1/ka-L/d)/d;if(Math.abs(fp)<1e-10)break;const nx=ka-f/fp;if(nx<=ke||nx<=0){ka=ke*2;continue}if(Math.abs(nx-ka)<1e-10)break;ka=nx}return ka}
 // Bateman curve for one dose, t days after it.
-export function conc(dose,t,p){if(t<0)return 0;const ke=Math.LN2/p.halfLife,ka=solveKa(p.tmax,ke),d=ka-ke;if(Math.abs(d)<1e-10)return p.bioavailability*dose*ka/p.volumeOfDistribution*t*Math.exp(-ke*t);return Math.max(0,p.bioavailability*dose*ka/(p.volumeOfDistribution*d)*(Math.exp(-ke*t)-Math.exp(-ka*t)))}
+// ka depends only on the drug, so it is solved once per drug and reused (same maths, far fewer Newton runs).
+const KA=new WeakMap();const kaOf=p=>{if(!KA.has(p))KA.set(p,solveKa(p.tmax,Math.LN2/p.halfLife));return KA.get(p)};
+export function conc(dose,t,p){if(t<0)return 0;const ke=Math.LN2/p.halfLife,ka=kaOf(p),d=ka-ke;if(Math.abs(d)<1e-10)return p.bioavailability*dose*ka/p.volumeOfDistribution*t*Math.exp(-ke*t);return Math.max(0,p.bioavailability*dose*ka/(p.volumeOfDistribution*d)*(Math.exp(-ke*t)-Math.exp(-ka*t)))}
 // Dose days for a step (after layout): its n doses, every freq days from the step's first day; none past the chart end.
 export function doseEvents(s,freq,weeks){const out=[],end=weeks*7;if(s.dose>0)for(let k=0;k<s.doses;k++){const t=s.start+k*freq;if(t>end)break;out.push({t,dose:s.dose})}return out}
 // Superposition of every past dose, sampled every 6 h, reported as mg in the body (concentration × Vd).
@@ -38,7 +40,7 @@ export const EXAMPLE={start:"2026-08-01",weeks:12,drug:TIRZ,freq:7,clicks:false,
 export function fromGlappParams(q,esc=String){if(!q.has("medication1"))return null;const notes=[];
  const rows=[];for(let i=1;q.has("medication"+i);i++)rows.push({drug:q.get("medication"+i),dose:+q.get("dose"+i),from:+q.get("from"+i),to:+q.get("to"+i),freq:+q.get("frequency"+i)});
  rows.sort((a,b)=>a.from-b.from);const drug=rows[0].drug in DRUGS?rows[0].drug:TIRZ,freq=rows[0].freq||7,steps=[];let next=1;
- for(const r of rows){if(r.from>next)steps.push({dose:0,doses:weeksToDoses(r.from-next,freq)});steps.push({dose:r.dose,doses:weeksToDoses(r.to-Math.max(r.from,next)+1,freq)});next=Math.max(next,r.to+1)}
+ for(const r of rows){if(r.to<next)continue;if(r.from>next)steps.push({dose:0,doses:weeksToDoses(r.from-next,freq)});steps.push({dose:r.dose,doses:weeksToDoses(r.to-Math.max(r.from,next)+1,freq)});next=Math.max(next,r.to+1)}
  if(!(rows[0].drug in DRUGS))notes.push(`The link's medication “${esc(rows[0].drug)}” isn't supported, so ${DRUGS[TIRZ].name} is used.`);
  const drugs=new Set(rows.map(r=>r.drug)),freqs=new Set(rows.map(r=>r.freq||7));
  if(drugs.size>1)notes.push(`The link has ${drugs.size} medications. This plotter shows one, so every step uses ${DRUGS[drug].name}.`);

@@ -21,7 +21,7 @@ Live at https://bilal-psd.github.io/glp-1-dosage-planner/ (the shadcn page, buil
 
 - Offered, not answered: a warning before opening a share link replaces a saved plan that differs from the example ("Keep mine" / "Load theirs"). Today a share link silently overwrites the saved plan.
 - Offered, not answered: undo for removing a step (bin) or a pen (×); both remove instantly. The pen-card mockup showed a "Pen 2 and its steps removed · Undo" row.
-- Bug found while testing, not fixed: a plan that's loaded (saved state, share link) or imported isn't stretched to fit its steps. Only `update()` extends `weeks`, so a plan whose steps run past its chart length shows the doses cut off until the next edit. The pen header ("5 doses" for a 40-dose step) and step totals then count only the doses inside the chart, while the step's dates list all of them. Probably run `stack()` + extend on load/import.
+- Fixed: loaded, shared and imported plans are now stretched to fit their steps (`fit()` in App.tsx), and a clicks plan with missing pens falls back to mg instead of crashing.
 
 - Narrow charts can hide a dose's mg label (the band is too thin), and there's no legend any more. A proposed fix, not yet answered: show the dose in the chart's hover tooltip ("19 Sept · 3.67 mg dose").
 - Two medications at once (from AGENTS.md "Ideas not yet built").

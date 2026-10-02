@@ -106,6 +106,8 @@ export async function exportPng(d: ExportData) {
 
 // A4 portrait, in points. Helvetica throughout (built into every PDF reader), so only Latin-1 characters in the text.
 export async function exportPdf(d: ExportData) {
+  // Dashes and thin spaces from date ranges become their Latin-1 look-alikes.
+  d = JSON.parse(JSON.stringify(d), (_, v) => (typeof v === "string" ? v.replace(/[\u2013\u2014]/g, "-").replace(/[\u2009\u202f]/g, " ") : v))
   const { jsPDF } = await import("jspdf")
   const doc = new jsPDF({ unit: "pt", format: "a4" })
   const PW = 595.28, PH = 841.89, M = 48, CW = PW - 2 * M, FOOT = PH - 36

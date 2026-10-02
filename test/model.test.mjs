@@ -62,3 +62,7 @@ test("glapp links: gaps become pauses, extras are reported",()=>{
  assert.deepEqual(state.steps.map(s=>[s.dose,s.doses]),[[2.5,4],[0,2],[5,2]]);
  assert.equal(state.start,"2026-01-05");assert.equal(state.weeks,10);assert.deepEqual(notes,[]);
  assert.equal(fromGlappParams(new URLSearchParams("")),null)});
+
+test("glapp links: a row inside an earlier one is cut, not added",()=>{
+ const q=new URLSearchParams("medication1=tirzepatide-injection&dose1=2.5&from1=1&to1=8&frequency1=7&medication2=tirzepatide-injection&dose2=5&from2=3&to2=5&frequency2=7");
+ assert.deepEqual(fromGlappParams(q).state.steps.map(s=>[s.dose,s.doses]),[[2.5,8]])});

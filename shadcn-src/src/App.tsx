@@ -54,6 +54,14 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
 const planJson = (plan: Plan) => ({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, doses, pen, clicks }) => ({ dose, doses, pen, clicks })) })
 // What Reset leaves: today's date, one 2.5 mg dose every 7 days, entered in mg (user's choice: a blank plan, not the example).
 const blankPlan = (): Plan => ({ start: isoDay(new Date()), weeks: 12, drug: TIRZ, freq: 7, clicks: false, gold: false, pens: [], steps: [{ dose: 2.5, doses: 1 }] })
+// Stacks the steps and stretches the chart to fit them (never shrinks it). Clicks mode needs tirzepatide and a pen for
+// every step; a plan that breaks either (an old or hand-made link or file) falls back to mg, which keeps every dose.
+function fit(p: Plan) {
+  if (p.clicks && (p.drug !== TIRZ || !Array.isArray(p.pens) || p.steps.some(s => !p.pens[s.pen ?? -1]))) p.clicks = false
+  const total = stack(p.steps, p.freq)
+  if (total > p.weeks) p.weeks = total
+  return p
+}
 const valid = (v: unknown): v is Plan => !!v && typeof v === "object" && Array.isArray((v as Plan).steps) && (v as Plan).steps.length > 0 && (v as Plan).drug in DRUGS
 
 // Load: a glapp-style link wins, then a share link (#plan=…), then what this browser saved, then the example.
@@ -113,6 +121,19 @@ function CountField({ value, onChange, min = 1, max = 99, label, unit, onRemove,
   )
 }
 
+// The mg per dose of a step. Follows the plan when it changes from elsewhere (a removed step, Reset, Import), but not while
+// the typed text already means that value ("2." stays "2."). An empty field changes nothing; on blur it shows the dose again.
+function MgField({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
+  const [draft, setDraft] = useState(mgFmt(value))
+  const [shown, setShown] = useState(value)
+  if (value !== shown) { setShown(value); if (draft === "" || +draft !== value) setDraft(mgFmt(value)) }
+  return (
+    <Input type="number" min={0} step={0.05} className="w-16 text-end pointer-coarse:h-9 sm:w-28" value={draft} aria-label={label}
+      onChange={e => { setDraft(e.target.value); const v = +e.target.value; if (e.target.value !== "" && v >= 0) onChange(v) }}
+      onBlur={() => setDraft(mgFmt(value))} />
+  )
+}
+
 function Stepper({ id, value, onChange, step, min, max, unit }: {
   id: string; value: number; onChange: (v: number) => void; step: number; min: number; max: number; unit: [string, string, string]
 }) {
@@ -144,7 +165,7 @@ function Stepper({ id, value, onChange, step, min, max, unit }: {
 
 export default function App() {
   const [{ plan: first, notes: firstNotes }] = useState(initialPlan)
-  const [plan, setPlan] = useState<Plan>(() => (first.drug === TIRZ ? first : { ...first, clicks: false }))
+  const [plan, setPlan] = useState<Plan>(() => fit(first))
   const [notes, setNotes] = useState<string[]>(firstNotes)
   // Notes from a mode switch fade in; notes present at page load don't. Dismissing fades them out first.
   const [notesAnim, setNotesAnim] = useState<"none" | "in" | "out">("none")
@@ -155,6 +176,7 @@ export default function App() {
   const [importName, setImportName] = useState("")  // kept after closing, so the dialog's text doesn't blank while it fades out
   const [busy, setBusy] = useState<"" | "pdf" | "png">("")
   const fileRef = useRef<HTMLInputElement>(null)
+  const chartRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { if (location.search || location.hash) history.replaceState(null, "", location.pathname) }, [])
 
@@ -162,8 +184,7 @@ export default function App() {
   const update = (fn: (p: Plan) => void) => setPlan(prev => {
     const p = structuredClone(prev)
     fn(p)
-    const total = stack(p.steps, p.freq)
-    if (total > p.weeks) p.weeks = total
+    fit(p)
     if (p.clicks) p.steps.forEach(s => { s.dose = M.clicksToMg(s.clicks ?? 0, p.pens[s.pen ?? 0].strength) })
     return p
   })
@@ -176,15 +197,28 @@ export default function App() {
     const pts = simulate(events, p.drug, p.weeks)
     const start = new Date(p.start + "T00:00")
     const today = isNaN(+start) ? null : (Date.now() - +start) / 864e5
-    return { steps: p.steps, perStep, events, pts, today }
+    // mg in the body just before each dose, for the doses table and the PDF (worked out once per plan, not per render).
+    const before = new Map(events.map(e => [e, amountBefore(events, p.drug, e.t)]))
+    return { steps: p.steps, perStep, events, pts, today, before }
   }, [plan])
+
+  // The plot's width (chart minus the y axis) decides which dose labels fit; kept current as the window resizes.
+  useEffect(() => {
+    const el = chartRef.current
+    if (!el) return
+    const measure = () => setPlotWidth(el.clientWidth - 40)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(plan)) } catch { /* private mode */ } }, [plan])
 
   const dateAt = (day: number) => { const d = new Date(plan.start + "T00:00"); if (isNaN(+d)) return null; d.setDate(d.getDate() + Math.floor(day)); return d }
-  const dayLabel = (day: number, long = false) => dateAt(day)?.toLocaleDateString(undefined, long ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short" }) ?? `Day ${Math.floor(day)}`
+  const dayLabel = (day: number, long = false, loc?: string) => dateAt(day)?.toLocaleDateString(loc, long ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short" }) ?? `Day ${Math.floor(day)}`
 
-  const { steps, perStep, events, pts, today } = calc
+  const { steps, perStep, events, pts, today, before } = calc
   const startDate = dateAt(0) ?? undefined
   const end = plan.weeks * 7
   const clicksAllowed = plan.drug === TIRZ
@@ -198,8 +232,8 @@ export default function App() {
 
   function setClicks(on: boolean) {
     if (on === plan.clicks || (on && !clicksAllowed)) return
-    const msg: string[] = []
-    update(p => {
+    // Pure: the notes come from a dry run on the current plan, not from inside the setPlan updater (which may run twice).
+    const convert = (p: Plan, msg: string[]) => {
       if (on) {
         if (!p.pens.length || p.steps.some(s => s.pen == null || !p.pens[s.pen])) {
           const max = Math.max(...p.steps.map(s => s.dose)), str = STRENGTHS.find(v => v >= max) ?? 15
@@ -215,7 +249,10 @@ export default function App() {
         p.steps.sort((a, b) => a.pen! - b.pen!)
       }
       p.clicks = on
-    })
+    }
+    const msg: string[] = []
+    convert(structuredClone(plan), msg)
+    update(p => convert(p, []))
     setNotes(msg)
     setNotesAnim("in")
   }
@@ -241,7 +278,7 @@ export default function App() {
       const v = JSON.parse(await f.text()), raw = v && typeof v === "object" && "plan" in v ? v.plan : v
       if (!valid(raw)) throw new Error()
       const p = upgradePlan({ ...structuredClone(EXAMPLE), ...raw })
-      setImportName(f.name); setPendingImport({ plan: p.drug === TIRZ ? p : { ...p, clicks: false }, name: f.name })
+      setImportName(f.name); setPendingImport({ plan: fit(p), name: f.name })
     } catch { note(`${f.name} isn't a plan file from this page, so nothing was changed.`) }
   }
   async function runExport(kind: "pdf" | "png") {
@@ -257,10 +294,14 @@ export default function App() {
   const summary = [shortName(plan.drug), plan.clicks ? plural(plan.pens.length, "pen") : null, `${plan.weeks} weeks`].filter(Boolean).join(" · ")
   const weekSpan = (a: number, b: number) => (a === b ? `Week ${a}` : `Weeks ${a}–${b}`)
   // "19 Sept", "5–12 Sept" within one month, "29 Aug – 5 Sept" across months.
-  const dayRange = (a: number, b: number) => {
-    if (Math.floor(a) === Math.floor(b)) return dayLabel(a)
+  const dayRange = (a: number, b: number, loc?: string) => {
+    if (Math.floor(a) === Math.floor(b)) return dayLabel(a, false, loc)
     const x = dateAt(a), y = dateAt(b)
-    return x && y && x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear() ? `${x.getDate()}–${dayLabel(b)}` : `${dayLabel(a)} – ${dayLabel(b)}`
+    // The browser's own range format puts day and month in the locale's order; within one month the dash is closed up
+    // ("5–12 Sept", "Sep 5–12"), across months it keeps its spaces ("29 Aug – 5 Sept").
+    if (!x || !y) return `${dayLabel(a, false, loc)} – ${dayLabel(b, false, loc)}`
+    const range = new Intl.DateTimeFormat(loc, { day: "numeric", month: "short" }).formatRange(x, y)
+    return x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear() ? range.replace(/\s*–\s*/, "–") : range
   }
 
   // ---- One step as a table row; clicks mode gets − / slider / +, mg mode a number field.
@@ -295,8 +336,7 @@ export default function App() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Input type="number" min={0} step={0.05} className="w-16 text-end pointer-coarse:h-9 sm:w-28" defaultValue={mgFmt(s.dose)} aria-label={`Step ${i + 1} dose in mg`}
-                onChange={e => { const v = +e.target.value; if (v >= 0) update(p => { p.steps[i].dose = v }) }} />
+              <MgField value={s.dose} label={`Step ${i + 1} dose in mg`} onChange={v => update(p => { p.steps[i].dose = v })} />
               <span className="text-xs text-muted-foreground sm:hidden" aria-hidden="true">mg</span>
             </div>
           )}
@@ -386,16 +426,18 @@ export default function App() {
   // ---- What the PDF and PNG show: the same plan, chart and doses as the page, in the light paper colours.
   function exportData(): ExportData {
     const name = DRUGS[plan.drug].name, route = name.match(/\((.*)\)/)?.[1] ?? ""
-    const full = (t: number) => dateAt(t)?.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) ?? `Day ${Math.floor(t)}`
+    // The PDF's Helvetica only draws Latin-1: dates in a locale that needs other letters (ja, ru, ar…) use British English.
+    const loc = /^[\x20-\xff\u2009\u202f]*$/.test(new Date(2026, 8, 30).toLocaleDateString(undefined, { weekday: "short", month: "short" })) ? undefined : "en-GB"
+    const full = (t: number) => dateAt(t)?.toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) ?? `Day ${Math.floor(t)}`
     const pen = (s: Step) => `${s.pen! + 1} · ${plan.pens[s.pen!].strength} mg`
     const last = runs[runs.length - 1]
     return {
       title: `${shortName(plan.drug)} dosing plan`,
       subtitle: `${route.charAt(0).toUpperCase()}${route.slice(1)} · estimated amount in the body`,
-      made: `Made ${new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`,
-      facts: [["Starts", full(0)], ["Dose every", plural(plan.freq, "day")], ["Doses", `${events.length} · ${mgFmt(totalMg)} mg`], ["Highest in body", `${peak[1].toFixed(1)} mg · ${dayLabel(peak[0])}`]],
+      made: `Made ${new Date().toLocaleDateString(loc, { day: "numeric", month: "short", year: "numeric" })}`,
+      facts: [["Starts", full(0)], ["Dose every", plural(plan.freq, "day")], ["Doses", `${events.length} · ${mgFmt(totalMg)} mg`], ["Highest in body", `${peak[1].toFixed(1)} mg · ${dayLabel(peak[0], false, loc)}`]],
       pts, end, yMax, yTicks,
-      xTicks: ticks.map(t => ({ t, label: dayLabel(t) })),
+      xTicks: ticks.map(t => ({ t, label: dayLabel(t, false, loc) })),
       bands: runs.map(r => ({ start: r.start, end: r.end, fill: r.dose > 0 ? PAPER_DOSE_COLOURS[DOSE_COLOURS.indexOf(doseColour.get(r.dose)!)] : PAPER_PAUSE, label: r.dose > 0 ? `${mgFmt(r.dose)} mg` : "pause" }))
         .concat(last && last.end < end ? [{ start: last.end, end, fill: PAPER_AFTER, label: "" }] : []),
       markers: penStarts.map(s => ({ t: s.start!, label: `Pen ${s.pen! + 1} (${plan.pens[s.pen!].strength} mg)` })),
@@ -404,13 +446,13 @@ export default function App() {
         right: [false, ...(plan.clicks ? [false, true] : []), true, true, false, true],
         widths: [5, ...(plan.clicks ? [10, 6] : []), 9, 7, 18, 9],
         rows: steps.map((s, i) => [String(i + 1), ...(plan.clicks ? [pen(s), String(s.clicks ?? 0)] : []), s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause", String(s.doses),
-          s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq) : dayRange(s.start!, s.end! - 1), s.dose > 0 ? `${mgFmt(s.dose * perStep[i].length)} mg` : "-"]),
+          s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq, loc) : dayRange(s.start!, s.end! - 1, loc), s.dose > 0 ? `${mgFmt(s.dose * perStep[i].length)} mg` : "-"]),
       },
       doses: {
         head: ["Date", "Week", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Dose", "In body before"],
         right: [false, true, ...(plan.clicks ? [false, true] : []), true, true],
         widths: [14, 6, ...(plan.clicks ? [10, 6] : []), 8, 10],
-        rows: doseRows.map(({ e, s }) => [full(e.t), String(Math.floor(e.t / 7) + 1), ...(plan.clicks ? [pen(s), String(s.clicks)] : []), `${mgFmt(e.dose)} mg`, `${amountBefore(events, plan.drug, e.t).toFixed(2)} mg`]),
+        rows: doseRows.map(({ e, s }) => [full(e.t), String(Math.floor(e.t / 7) + 1), ...(plan.clicks ? [pen(s), String(s.clicks)] : []), `${mgFmt(e.dose)} mg`, `${before.get(e)!.toFixed(2)} mg`]),
       },
       disclaimer: "Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice.",
       fileStem: `glp1-plan-${isoDay(new Date())}`,
@@ -525,7 +567,7 @@ export default function App() {
             <CardDescription>Shading shows the dose{showToday ? " · amber line is today" : ""}{penStarts.length ? " · dashed lines are new pens" : ""}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={el => { if (el && Math.abs(el.clientWidth - 40 - plotWidth) > 4) setPlotWidth(el.clientWidth - 40) }}>
+            <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={chartRef}>
               <AreaChart data={data} margin={{ top: 24, left: 0, right: 8 }}>
                 <CartesianGrid vertical={false} />
                 <defs>
@@ -649,7 +691,7 @@ export default function App() {
                       <TableCell className="text-end max-[359px]:hidden">{Math.floor(e.t / 7) + 1}</TableCell>
                       {plan.clicks && <><TableCell className="max-sm:hidden">{s.pen! + 1} · {plan.pens[s.pen!].strength} mg</TableCell><TableCell className="text-end max-sm:hidden">{s.clicks}</TableCell></>}
                       <TableCell className="text-end">{mgFmt(e.dose)} mg{plan.clicks && <div className="text-muted-foreground sm:hidden">{s.clicks} cl</div>}</TableCell>
-                      <TableCell className="text-end">{amountBefore(events, plan.drug, e.t).toFixed(2)} mg</TableCell>
+                      <TableCell className="text-end">{before.get(e)!.toFixed(2)} mg</TableCell>
                     </TableRow>
                   )
                 })}
