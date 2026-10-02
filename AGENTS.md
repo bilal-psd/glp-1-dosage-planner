@@ -46,11 +46,36 @@ Computation (all done in the browser at run time):
 - Chart colouring (user picked "B1" from a comparison): the area under the curve is coloured by dose level, not by step. Consecutive steps with the same mg form one level, even across a pen change. Each distinct dose gets a colour by its position from lowest to highest, cycling through six steps of the data teal (deep → light). Neighbouring levels never share a colour: the later one moves to the next free colour and keeps it everywhere, so a dose always has one colour. Pauses and the time after the last dose are neutral; the line stays teal; no divider lines between colours. Labels above the chart show each level's mg (never clicks), with no separate legend (the user removed it as redundant), and pen changes are dashed lines labelled "Pen N (strength mg)".
 - Number fields never show the browser's up/down arrows (Chrome draws them on hover, inside the field, which shifts the number). A step's dose count uses `CountField`: − and + at its edges, the number centred between them, digits only (user's pick "C" from a comparison). Dose every / Chart length use `Stepper`.
 - Each step shows the dates of its first and last dose (a pause shows the dates it covers); its dose count is the step's own input.
+- Settings card: lays out by the card's own width (container queries): 2 columns on phones, 4 at mid width, one row only when every field fits (`@[69rem]`). "Dose every" and "Chart length" are `Stepper`s (number + unit + − / + at the trailing edge, aligned with the other fields; unit shortens to "d"/"wk" when narrow). The mg / KwikPen clicks toggle halves never shrink below their labels.
+- Start date uses the shadcn date picker (Popover + Calendar), not the native input, whose popup and icon ignored the dark palette. `color-scheme: dark` is set so remaining native controls draw dark.
+- Now / Next dose / Highest are one summary strip (user's pick "B"): values at body size, 3 columns split by hairlines when the strip is ≥ 32rem, label-left / value-right rows when narrower.
+- Order below xl: settings, summary, chart, plan, doses. At xl the plan is the left column.
+- "+ Add step" is centred in its card footer, in line with "+ Add pen".
+- Phones (clicks mode): a step is two rows: name + dates | mg | Doses field | ×, then slider + clicks field. The slider row stops at the Doses column so the clicks field sits exactly under the Doses field. Same-month dates read "5–12 Sept". In mg mode the step name has its own line on phones. The user still finds this layout unclear (see PLAN.md).
 
 ## Persistence and loading
 
 - State is saved to `localStorage` key `glp1-plotter:v1` after every change.
 - Load order at page start: glapp-style query params (`medicationN`, `doseN`, `fromN`, `toN`, `frequencyN`, `start_date`, `length`) → share link (`#plan=` base64url JSON of the full state, made by "Copy share link") → saved state → built-in example. Gaps in a glapp link become 0 mg pause steps. After loading, the page strips the query string and hash.
+
+## How the user works with you
+
+- **Commit and push to `main` after every finished, verified change, without asking**, until the user says the plotter ships to real users (GitHub Pages serves `main`; it isn't public yet). Then go back to asking. Per change: `node --test`, `cd shadcn-src && npm run build`, check in the browser, commit (only your files), push, then wait until the live page serves the new `assets/index-*.js` before saying it's live.
+- **Design decisions go through comparisons.** For any non-trivial visual change the user wants a few working options to compare, then picks one by letter ("B1", "C", …). Build the pick exactly; don't add extras they didn't choose. Record the pick in the UI decisions above.
+- **Don't place controls "wherever there's room".** The user rejected a checkbox dropped under a meter as not designed. Work out where a control belongs (what it changes, what it sits next to) before placing it.
+- **Ask before a third round.** On the phone pen-step redesign (see PLAN.md) three rounds of options were rejected, each judged worse. When a round is rejected, ask what specifically is wrong before generating more.
+- The impeccable design hook flags Geist as an overused font on every page. Geist is the project's font on purpose; leave it and don't add an ignore rule unless the user asks.
+
+## Gotchas
+
+- **Build output is the repo root.** `vite.config.ts` has `outDir: ".."` with `emptyOutDir: false`; the build script deletes `../assets` first. Never set `emptyOutDir: true`.
+- **GitHub Pages caches files ~10 min.** The built page uses hashed asset names, so it's safe. `classic/` imports `../model.js?v=2`; bump the number whenever `model.js` exports change or a cached old model breaks it.
+- **Recharts 3 orders a layer by mount order, not JSX order.** A `ReferenceArea` added after first render was drawn over the curve. Give chart layers an explicit `zIndex` (the dose-label areas use `-150`).
+- **`CountField` inside a flex row needs `shrink-0`** or it collapses until the number disappears.
+- **Testing in the Claude browser pane:** the clipboard API is blocked (stub `navigator.clipboard` to test "Copy share link"); a hash-only `navigate` doesn't reload the page (call `location.reload()`); CSS animations run slowly there, so don't read their end state too soon; widths under 768px also emulate a touch screen (`pointer: coarse`), which changes some sizes.
+- Testing writes to `localStorage` on `localhost:5173`, not the live site. Put back the example plan afterwards: `{start:"2026-08-01",weeks:12,drug:"tirzepatide-injection",freq:7,clicks:false,gold:false,pens:[],steps:[{dose:2.5,doses:7},{dose:3.7,doses:1},{dose:3.25,doses:1}]}`.
+- `npx eslint` reports 3 pre-existing `react-refresh/only-export-components` errors (badge, button, toggle export variants). Not caused by recent work; leave them unless asked.
+- Phone layouts use Tailwind container queries (`@container`, `@max-md/card-header:`, `@[69rem]:`) sized by the card, not the viewport. Check 320, 375, 768, 1280 and 1440px when changing layout.
 
 ## Working preferences
 

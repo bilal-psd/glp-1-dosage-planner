@@ -12,7 +12,7 @@ Sharing happens through links: a plan can be encoded in a glapp-style URL and op
 
 ## What it's meant to do
 
-1. **Visualise levels.** Turn a plan (steps of dose × weeks, dosed every N days) into a curve of estimated mg in the body, so the user can see peaks, troughs and how levels build up or taper.
+1. **Visualise levels.** Turn a plan (steps of a dose × a number of doses, dosed every N days) into a curve of estimated mg in the body, so the user can see peaks, troughs and how levels build up or taper.
 2. **Plan pen usage (core).** For tirzepatide, plan by pen: choose a pen strength, dial each dose in clicks (60 clicks = one labelled dose), and see how many clicks and mg are left in each pen. The golden dose can be counted or not.
 3. **Replace glapp.io's plotter.** Use the same pharmacokinetic model and drug constants as glapp.io, so results are directly comparable, but fix its scheduling bug: a 1-week step gives exactly one dose. Open glapp links as they are.
 
