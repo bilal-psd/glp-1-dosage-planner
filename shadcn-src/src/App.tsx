@@ -1,11 +1,12 @@
 // The GLP-1 plotter (the main page), built from shadcn/ui components. The earlier hand-styled page is frozen at ../classic/.
 // Same maths (../model.js), same saved plan (localStorage "glp1-plotter:v1") and same share-link format as that page.
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
-import { CalendarDays, Check, Link2, Minus, Plus, Trash2, X } from "lucide-react"
+import { CalendarDays, Check, Download, FileText, Image as ImageIcon, Link2, Minus, Plus, Trash2, Upload, X } from "lucide-react"
 
 import * as M from "../../model.js"
 import { cn } from "@/lib/utils"
+import { type ExportData, PAPER_AFTER, PAPER_DOSE_COLOURS, PAPER_PAUSE, download, exportPdf, exportPng } from "@/lib/export"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -49,6 +50,10 @@ const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padSt
 const mgFmt = (v: number) => (+v).toFixed(2).replace(/\.?0+$/, "")
 const shortName = (d: string) => DRUGS[d].name.replace(/ \(.*/, "")
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
+// The plan as plain JSON: what a share link carries and what a plan file holds (with a small wrapper).
+const planJson = (plan: Plan) => ({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, doses, pen, clicks }) => ({ dose, doses, pen, clicks })) })
+// What Reset leaves: today's date, one 2.5 mg dose every 7 days, entered in mg (user's choice: a blank plan, not the example).
+const blankPlan = (): Plan => ({ start: isoDay(new Date()), weeks: 12, drug: TIRZ, freq: 7, clicks: false, gold: false, pens: [], steps: [{ dose: 2.5, doses: 1 }] })
 const valid = (v: unknown): v is Plan => !!v && typeof v === "object" && Array.isArray((v as Plan).steps) && (v as Plan).steps.length > 0 && (v as Plan).drug in DRUGS
 
 // Load: a glapp-style link wins, then a share link (#plan=…), then what this browser saved, then the example.
@@ -146,6 +151,10 @@ export default function App() {
   const [copied, setCopied] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
   const [plotWidth, setPlotWidth] = useState(0)
+  const [pendingImport, setPendingImport] = useState<{ plan: Plan; name: string } | null>(null)
+  const [importName, setImportName] = useState("")  // kept after closing, so the dialog's text doesn't blank while it fades out
+  const [busy, setBusy] = useState<"" | "pdf" | "png">("")
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { if (location.search || location.hash) history.replaceState(null, "", location.pathname) }, [])
 
@@ -212,9 +221,34 @@ export default function App() {
   }
 
   async function share() {
-    const json = JSON.stringify({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, doses, pen, clicks }) => ({ dose, doses, pen, clicks })) })
+    const json = JSON.stringify(planJson(plan))
     const url = location.origin + location.pathname + "#plan=" + btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { prompt("Copy this link:", url) }
+  }
+
+  const note = (msg: string) => { setNotes([msg]); setNotesAnim("in") }
+  function resetAll() {
+    try { localStorage.removeItem(KEY) } catch { /* private mode */ }
+    setNotes([]); setNotesAnim("none"); setPlan(blankPlan())
+  }
+  function exportJson() {
+    const file = { app: "glp1-plotter", version: 1, plan: planJson(plan) }
+    download(new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }), `glp1-plan-${isoDay(new Date())}.json`)
+  }
+  // Import reads a plan file (or a bare plan object), then asks before replacing the current plan.
+  async function readImport(f: File) {
+    try {
+      const v = JSON.parse(await f.text()), raw = v && typeof v === "object" && "plan" in v ? v.plan : v
+      if (!valid(raw)) throw new Error()
+      const p = upgradePlan({ ...structuredClone(EXAMPLE), ...raw })
+      setImportName(f.name); setPendingImport({ plan: p.drug === TIRZ ? p : { ...p, clicks: false }, name: f.name })
+    } catch { note(`${f.name} isn't a plan file from this page, so nothing was changed.`) }
+  }
+  async function runExport(kind: "pdf" | "png") {
+    setBusy(kind)
+    try { await (kind === "pdf" ? exportPdf : exportPng)(exportData()) }
+    catch { note(`The ${kind.toUpperCase()} couldn't be made. Try again, or try another browser.`) }
+    finally { setBusy("") }
   }
 
   const iconFade = "transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)]"
@@ -349,38 +383,61 @@ export default function App() {
   const totalMg = events.reduce((n, e) => n + e.dose, 0)
   const totalClicks = plan.clicks ? doseRows.reduce((n, r) => n + (r.s.clicks ?? 0), 0) : 0
 
+  // ---- What the PDF and PNG show: the same plan, chart and doses as the page, in the light paper colours.
+  function exportData(): ExportData {
+    const name = DRUGS[plan.drug].name, route = name.match(/\((.*)\)/)?.[1] ?? ""
+    const full = (t: number) => dateAt(t)?.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) ?? `Day ${Math.floor(t)}`
+    const pen = (s: Step) => `${s.pen! + 1} · ${plan.pens[s.pen!].strength} mg`
+    const last = runs[runs.length - 1]
+    return {
+      title: `${shortName(plan.drug)} dosing plan`,
+      subtitle: `${route.charAt(0).toUpperCase()}${route.slice(1)} · estimated amount in the body`,
+      made: `Made ${new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`,
+      facts: [["Starts", full(0)], ["Dose every", plural(plan.freq, "day")], ["Doses", `${events.length} · ${mgFmt(totalMg)} mg`], ["Highest in body", `${peak[1].toFixed(1)} mg · ${dayLabel(peak[0])}`]],
+      pts, end, yMax, yTicks,
+      xTicks: ticks.map(t => ({ t, label: dayLabel(t) })),
+      bands: runs.map(r => ({ start: r.start, end: r.end, fill: r.dose > 0 ? PAPER_DOSE_COLOURS[DOSE_COLOURS.indexOf(doseColour.get(r.dose)!)] : PAPER_PAUSE, label: r.dose > 0 ? `${mgFmt(r.dose)} mg` : "pause" }))
+        .concat(last && last.end < end ? [{ start: last.end, end, fill: PAPER_AFTER, label: "" }] : []),
+      markers: penStarts.map(s => ({ t: s.start!, label: `Pen ${s.pen! + 1} (${plan.pens[s.pen!].strength} mg)` })),
+      steps: {
+        head: ["Step", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Per dose", "Doses", "Dates", "Total"],
+        right: [false, ...(plan.clicks ? [false, true] : []), true, true, false, true],
+        widths: [5, ...(plan.clicks ? [10, 6] : []), 9, 7, 18, 9],
+        rows: steps.map((s, i) => [String(i + 1), ...(plan.clicks ? [pen(s), String(s.clicks ?? 0)] : []), s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause", String(s.doses),
+          s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq) : dayRange(s.start!, s.end! - 1), s.dose > 0 ? `${mgFmt(s.dose * perStep[i].length)} mg` : "-"]),
+      },
+      doses: {
+        head: ["Date", "Week", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Dose", "In body before"],
+        right: [false, true, ...(plan.clicks ? [false, true] : []), true, true],
+        widths: [14, 6, ...(plan.clicks ? [10, 6] : []), 8, 10],
+        rows: doseRows.map(({ e, s }) => [full(e.t), String(Math.floor(e.t / 7) + 1), ...(plan.clicks ? [pen(s), String(s.clicks)] : []), `${mgFmt(e.dose)} mg`, `${amountBefore(events, plan.drug, e.t).toFixed(2)} mg`]),
+      },
+      disclaimer: "Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice.",
+      fileStem: `glp1-plan-${isoDay(new Date())}`,
+    }
+  }
+
   return (
     <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-4 md:px-12 md:py-8">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-baseline gap-4">
+      {/* Reset is the header's only control, top right on the title's line at every width (user's request). */}
+      <header className="flex items-start justify-between gap-4 sm:items-center">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4">
           <h1 className="text-2xl font-semibold tracking-tight">GLP-1 plotter</h1>
           <span className="text-xs text-muted-foreground">{summary}</span>
         </div>
-        <div className="flex flex-wrap gap-2 max-sm:w-full max-sm:*:grow">
-          <AlertDialog>
-            <AlertDialogTrigger asChild><Button variant="outline">Reset to example</Button></AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Replace your plan with the example?</AlertDialogTitle>
-                <AlertDialogDescription>Your current plan will be lost.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { setNotes([]); setNotesAnim("none"); setPlan(structuredClone(EXAMPLE)) }}>Replace</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <Button onClick={share}>
-            <span data-icon="inline-start" className="relative flex">
-              <Check className={cn("absolute inset-0", iconFade, copied ? iconOn : iconOff)} />
-              <Link2 className={cn(iconFade, copied ? iconOff : iconOn)} />
-            </span>
-            <span className="grid">
-              <span className={cn("col-start-1 row-start-1", copied && "invisible")}>Copy share link</span>
-              <span className={cn("col-start-1 row-start-1", !copied && "invisible")}>Link copied</span>
-            </span>
-          </Button>
-        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild><Button variant="outline" className="shrink-0">Reset</Button></AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear everything?</AlertDialogTitle>
+              <AlertDialogDescription>Your plan is deleted from this browser and you start again with a blank plan. Export a plan file first if you want to keep it.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={resetAll}>Clear everything</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </header>
 
       {notes.length > 0 && (
@@ -601,6 +658,39 @@ export default function App() {
           </CardContent>
         </Card>
       </div>
+      {/* Share, export and import: a quiet footer under everything (user's pick "B"), since they're rarely used.
+          Phones: a two-column grid of outlined buttons, the last one full width. */}
+      <footer className="border-t pt-4">
+        <div className="flex flex-wrap gap-x-2 gap-y-1 sm:-mx-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-2 [&>button]:text-xs [&>button]:text-muted-foreground [&>button]:hover:text-foreground max-sm:[&>button]:h-10 max-sm:[&>button]:justify-start max-sm:[&>button]:border max-sm:[&>button]:border-border max-sm:[&>button:last-child]:col-span-2">
+          <Button variant="ghost" size="sm" disabled={busy !== ""} onClick={() => runExport("pdf")}><FileText data-icon="inline-start" />{busy === "pdf" ? "Making PDF…" : "Export PDF"}</Button>
+          <Button variant="ghost" size="sm" disabled={busy !== ""} onClick={() => runExport("png")}><ImageIcon data-icon="inline-start" />{busy === "png" ? "Making PNG…" : "Export chart (PNG)"}</Button>
+          <Button variant="ghost" size="sm" onClick={exportJson}><Download data-icon="inline-start" />Export plan (JSON)</Button>
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}><Upload data-icon="inline-start" />Import plan (JSON)</Button>
+          <Button variant="ghost" size="sm" onClick={share}>
+            <span data-icon="inline-start" className="relative flex">
+              <Check className={cn("absolute inset-0", iconFade, copied ? iconOn : iconOff)} />
+              <Link2 className={cn(iconFade, copied ? iconOff : iconOn)} />
+            </span>
+            <span className="grid">
+              <span className={cn("col-start-1 row-start-1", copied && "invisible")}>Copy share link</span>
+              <span className={cn("col-start-1 row-start-1", !copied && "invisible")}>Link copied</span>
+            </span>
+          </Button>
+        </div>
+        <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) readImport(f) }} />
+        <AlertDialog open={!!pendingImport} onOpenChange={o => { if (!o) setPendingImport(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Replace your plan?</AlertDialogTitle>
+              <AlertDialogDescription>The plan in {importName} replaces the one you have now.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { if (pendingImport) { setNotes([]); setNotesAnim("none"); setPlan(pendingImport.plan) } setPendingImport(null) }}>Replace</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </footer>
     </main>
   )
 }

@@ -15,6 +15,7 @@ Live at https://bilal-psd.github.io/glp-1-dosage-planner/ (the shadcn page, buil
 - Pens: golden dose is per pen, as a "Golden dose" switch in the pen header next to strength (pick "B"); the old plan-wide setting carries over. On narrow cards the pen settings move to their own row.
 - Phone step rows: the clicks field lines up under the Doses field; same-month dates are shortened; "+ Add step" is centred.
 - Pen step rows redesigned (picks "B" then "B2"): mg heads each step above its slider; Doses and clicks fields stacked on the right, aligned with the strength menu; remove-step × replaced by a bin on the Doses field at 1 dose; remove-pen × moved to the title row above the strength menu.
+- Header has only "Reset" (clears the saved plan, opens a blank plan). Share / export / import moved to a quiet footer (pick "B"): PDF (chart + steps + every dose), chart PNG, plan JSON export and import, share link.
 
 ## Next (not started; confirm with the user first)
 
