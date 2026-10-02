@@ -22,7 +22,7 @@ The curve is an estimate from a one-compartment population model, not a measurem
 
 ## How the estimate works
 
-The model and drug constants are ported from [glapp.io](https://glapp.io)'s plotter, so results are directly comparable with it. Each dose adds a Bateman absorption curve; the doses are summed and plotted as mg in the body. glapp-style links (`?medication1=…&dose1=…`) open as they are. The one deliberate difference: a one-week step gives exactly one dose.
+The model and drug constants are ported from [glapp.io](https://glapp.io)'s plotter, so results are directly comparable with it. Each dose adds a Bateman absorption curve; the doses are summed and plotted as mg in the body. The one deliberate difference: a one-week step gives exactly one dose.
 
 The constants and maths are listed in [AGENTS.md](AGENTS.md).
 
