@@ -9,7 +9,9 @@ export default defineConfig({
   // which GitHub Pages serves at /glp-1-dosage-planner/. Relative base so it works under that sub-path.
   base: "./",
   // Never empty the output dir: it is the repo root. The build script deletes the old ../assets first instead.
-  build: { outDir: "..", emptyOutDir: false },
+  // Two pages: the GLP-1 plotter (index.html → ../index.html) and the benzodiazepine plotter (benzo/index.html →
+  // ../benzo/index.html, served at /glp-1-dosage-planner/benzo/). They share ../assets.
+  build: { outDir: "..", emptyOutDir: false, rollupOptions: { input: { main: path.resolve(__dirname, "index.html"), benzo: path.resolve(__dirname, "benzo/index.html") } } },
   server: { port: 5174, fs: { allow: [".."] } },
   plugins: [react(), tailwindcss()],
   resolve: {

@@ -26,5 +26,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "../model.js"]
+  "include": ["src", "../model.js", "../benzo-model.js"]
 }

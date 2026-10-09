@@ -16,6 +16,10 @@ Plot the estimated amount of a GLP-1 medication in your body over a titration pl
 
 Supported medications: tirzepatide (injection), semaglutide (injection and oral) and retatrutide (injection).
 
+## Benzodiazepine plotter
+
+**[Open the benzodiazepine plotter](https://bilal-psd.github.io/glp-1-dosage-planner/benzo/)**: a separate page that plots the estimated blood level (ng/mL) of alprazolam, clonazepam, lorazepam or diazepam over a plan of daily doses (up to four dose times a day, in steps of days). It uses your weight, shades the range between short and long half-lives, includes diazepam's long-lived active metabolite (nordazepam), and shows the average level week by week. It is for looking at a plan with your prescriber, not for making one: never stop or lower a benzodiazepine on your own.
+
 ## Not medical advice
 
 The curve is an estimate from a one-compartment population model, not a measurement of your levels. It doesn't recommend doses. Talk to your prescriber about your treatment.

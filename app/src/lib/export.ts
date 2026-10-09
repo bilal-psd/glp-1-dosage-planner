@@ -19,6 +19,13 @@ export type ExportData = {
   doses: Table
   disclaimer: string
   fileStem: string         // "glp1-plan-2026-10-02"
+  // Optional, for the benzodiazepine plotter: a shaded range around the curve ([t, low, high]), a second dashed curve
+  // (the parent drug when the main curve includes a metabolite), and its own labels.
+  range?: [number, number, number][]
+  pts2?: [number, number][]
+  app?: string             // "GLP-1 plotter"
+  chartLabel?: string      // "Estimated amount in body (mg)"
+  dosesLabel?: string      // "Every dose"
 }
 
 const INK = "#17181b", INK2 = "#5d6068", RULE = "#e3e4e8", LINE = "#1f8a80", MARK = "#9a9ca3"
@@ -46,7 +53,8 @@ export function chartSvg(d: ExportData, w: number, h: number, framed: boolean) {
     s += `<text x="${pad}" y="${pad + 46}" font-size="15" fill="${INK2}">${esc(d.subtitle)}</text>`
   }
   // Dose bands under the curve, clipped to the area below it.
-  const line = d.pts.map(([t, v], i) => `${i ? "L" : "M"}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join("")
+  const path = (pts: [number, number][]) => pts.map(([t, v], i) => `${i ? "L" : "M"}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join("")
+  const line = path(d.pts)
   s += `<defs><clipPath id="under"><path d="${line}L${x(d.end)},${B}L${x(0)},${B}Z"/></clipPath></defs>`
   s += `<g clip-path="url(#under)">${d.bands.map(b => `<rect x="${x(b.start)}" y="${T}" width="${Math.max(0, x(Math.min(b.end, d.end)) - x(b.start))}" height="${B - T}" fill="${b.fill}"/>`).join("")}</g>`
   for (const v of d.yTicks) s += `<line x1="${L}" x2="${R}" y1="${y(v)}" y2="${y(v)}" stroke="${RULE}" stroke-width="1"/><text x="${L - 8}" y="${y(v) + fs * 0.35}" font-size="${fs}" text-anchor="end" fill="${INK2}">${v}</text>`
@@ -74,6 +82,11 @@ export function chartSvg(d: ExportData, w: number, h: number, framed: boolean) {
     const label = [p.label, p.label.split(" · ")[0]].find(l => l.length * fs * 0.55 <= room)
     if (label) s += `<text x="${x0 + 2}" y="${py + fs + 3}" font-size="${fs}" fill="${INK2}">${esc(label)}</text>`
   }
+  if (d.range?.length) {
+    const lo = d.range.map(([t, v]) => [t, v] as [number, number]), hi = d.range.map(([t, , v]) => [t, v] as [number, number]).reverse()
+    s += `<path d="${path(lo)}${path(hi).replace("M", "L")}Z" fill="${LINE}" fill-opacity="0.16"/>`
+  }
+  if (d.pts2?.length) s += `<path d="${path(d.pts2)}" fill="none" stroke="${LINE}" stroke-width="${framed ? 1.5 : 1}" stroke-dasharray="${framed ? "6 4" : "4 3"}"/>`
   s += `<path d="${line}" fill="none" stroke="${LINE}" stroke-width="${framed ? 2.5 : 1.5}" stroke-linejoin="round"/>`
   if (framed) s += `<text x="${pad}" y="${h - pad + 8}" font-size="13" fill="${INK2}">${esc(d.disclaimer)}</text>`
   return s + "</svg>"
@@ -116,7 +129,7 @@ export async function exportPdf(d: ExportData) {
 
   doc.setFont("helvetica", "bold"); doc.setFontSize(18); ink(); doc.text(d.title, M, y + 14)
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); ink2(); doc.text(d.subtitle, M, y + 30)
-  doc.text([d.made, "GLP-1 plotter"], PW - M, y + 18, { align: "right", lineHeightFactor: 1.5 })
+  doc.text([d.made, d.app ?? "GLP-1 plotter"], PW - M, y + 18, { align: "right", lineHeightFactor: 1.5 })
   y += 42
   doc.setDrawColor(INK); doc.setLineWidth(1.25); doc.line(M, y, PW - M, y)
   y += 20
@@ -130,7 +143,7 @@ export async function exportPdf(d: ExportData) {
 
   const label = (t: string) => { doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); ink2(); doc.text(t.toUpperCase(), M, y, { charSpace: 0.6 }); y += 16 }
 
-  label("Estimated amount in body (mg)")
+  label(d.chartLabel ?? "Estimated amount in body (mg)")
   const chartH = 200, cw = Math.round(CW), ch = chartH
   // 3× is sharp in print; "FAST" deflates the image so the file stays small enough to email.
   const c = await svgToCanvas(chartSvg(d, cw, ch, false), cw, ch, 3)
@@ -159,7 +172,7 @@ export async function exportPdf(d: ExportData) {
 
   label("Steps"); table(d.steps)
   if (y > FOOT - 80) { doc.addPage(); y = M }
-  label("Every dose"); table(d.doses)
+  label(d.dosesLabel ?? "Every dose"); table(d.doses)
 
   const pages = doc.getNumberOfPages()
   for (let p = 1; p <= pages; p++) {
