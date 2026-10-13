@@ -314,8 +314,9 @@ export default function App() {
     return x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear() ? range.replace(/\s*–\s*/, "–") : range
   }
 
-  // ---- A step's days between doses: "every 7 days" under its Doses field, opening a stepper. A step without its own
-  // interval follows the plan's "Dose every" (and shows it muted); setting it back to the plan's value clears it.
+  // ---- A step's days between doses: "every 7 days" under its Doses field, opening a stepper. It is the gap before each of
+  // the step's doses, the first counted from the previous step's last dose (user's call). A step without its own interval
+  // follows the plan's "Dose every" (and shows it muted); setting it back to the plan's value clears it.
   function intervalPicker(i: number) {
     const s = steps[i], own = s.freq != null, f = stepFreq(s, plan.freq)
     const setFreq = (v: number | null) => update(p => { if (v == null || v === p.freq) delete p.steps[i].freq; else p.steps[i].freq = v })
@@ -332,9 +333,8 @@ export default function App() {
             <FieldLabel htmlFor={`freq-${i}`}>Step {i + 1}: dose every</FieldLabel>
             <Stepper id={`freq-${i}`} value={f} step={0.5} min={0.5} max={30} unit={["day", "days", "d"]} onChange={v => setFreq(v)} />
           </Field>
-          {own
-            ? <Button variant="outline" size="sm" onClick={() => setFreq(null)}>Use the plan's {plural(plan.freq, "day")}</Button>
-            : <p className="text-xs text-muted-foreground">Follows the plan's “Dose every” until you change it here.</p>}
+          <p className="text-xs text-muted-foreground">{i ? "Days before each of this step's doses, counted from the previous dose." : "Days between this step's doses."}{own ? "" : " Follows the plan's “Dose every” until you change it here."}</p>
+          {own && <Button variant="outline" size="sm" onClick={() => setFreq(null)}>Use the plan's {plural(plan.freq, "day")}</Button>}
         </PopoverContent>
       </Popover>
     )

@@ -19,12 +19,17 @@ export function simulate(events,drug,weeks){const p=DRUGS[drug],pts=[];for(let k
 // mg in the body at day t from doses taken strictly before t (the amount just before a dose on day t).
 export function amountBefore(events,drug,t){const p=DRUGS[drug];let c=0;for(const e of events)if(e.t<t)c+=conc(e.dose,t-e.t,p);return c*p.volumeOfDistribution}
 
-// Steps run back to back in dose slots: a step of n doses takes n slots of its interval (stepFreq), so with one interval
-// throughout, dose k of the plan is on day k·freq. A step with its own interval moves every later step by the difference.
-// A 0 mg step takes its slots without dosing (a pause). Sets each step's start/end (days, end-exclusive) and from/to
-// (the calendar weeks it covers, for labels). Returns the chart length in weeks needed to reach the end of the last step.
+// Steps run back to back in dose slots. A step's interval (stepFreq) is the gap before each of its doses: its first dose
+// comes that many days after the previous step's last dose (the plan's first dose is on day 0), the rest follow at the
+// same spacing. With one interval throughout, dose k of the plan is on day k·freq. A 0 mg step takes its slots without
+// dosing (a pause). Sets each step's start (its first slot) and end (the next step's start; the last step's ends one of
+// its intervals after its last slot), both in days, end-exclusive, and from/to (the calendar weeks it covers, for labels).
+// Returns the chart length in weeks needed to reach the end of the last step.
 // 7, 1, 1 doses every 7 days → days 0–48, 49–55, 56–62 → weeks 1–7, 8, 9.
-export function layout(steps,freq){let day=0;steps.forEach(s=>{s.doses=Math.max(1,Math.round(s.doses)||1);if(!(s.freq>0))delete s.freq;s.start=day;day+=s.doses*stepFreq(s,freq);s.end=day;s.from=Math.floor(s.start/7)+1;s.to=Math.ceil(s.end/7)});return Math.ceil(day/7)}
+// 5 mg ×3 every 10 days, then 10 mg ×3 every 20 → days 0, 10, 20, then 40, 60, 80.
+export function layout(steps,freq){let last=0;steps.forEach((s,i)=>{s.doses=Math.max(1,Math.round(s.doses)||1);if(!(s.freq>0))delete s.freq;const f=stepFreq(s,freq);
+  s.start=i?last+f:0;if(i)steps[i-1].end=s.start;last=s.start+(s.doses-1)*f;s.end=last+f});
+ steps.forEach(s=>{s.from=Math.floor(s.start/7)+1;s.to=Math.ceil(s.end/7)});return Math.ceil(steps[steps.length-1].end/7)}
 // Plans saved before steps were counted in doses gave each step a length in weeks. Convert it to the number of doses the
 // old rule produced (every freq days from the step's first day, end-exclusive): ⌈weeks·7 / freq⌉. Same dose days at freq 7.
 export const weeksToDoses=(weeks,freq)=>Math.max(1,Math.ceil(Math.max(1,Math.round(weeks)||1)*7/freq-1e-9));
@@ -39,7 +44,7 @@ export const EXAMPLE={start:"2026-08-01",weeks:12,drug:TIRZ,freq:7,clicks:false,
 
 // A glapp-style link (medicationN, doseN, fromN, toN, frequencyN, start_date, length) → a plan.
 // glapp steps are week ranges; each becomes the number of doses it held at its own frequency (weeksToDoses). A row whose
-// frequency differs from the first row's keeps it as the step's own interval. Gaps become 0 mg pause steps; overlaps are
+// frequency differs from the first row's keeps it as the step's own interval (the gap before each of its doses). Gaps become 0 mg pause steps; overlaps are
 // cut. Returns null when the link has no plan, plus messages to show.
 export function fromGlappParams(q,esc=String){if(!q.has("medication1"))return null;const notes=[];
  const rows=[];for(let i=1;q.has("medication"+i);i++)rows.push({drug:q.get("medication"+i),dose:+q.get("dose"+i),from:+q.get("from"+i),to:+q.get("to"+i),freq:+q.get("frequency"+i)});

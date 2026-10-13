@@ -29,10 +29,12 @@ test("a step keeps its dose count when the interval changes",()=>{
  const s=[{dose:2.5,doses:2},{dose:5,doses:1}];assert.equal(layout(s,10),5);
  assert.deepEqual(s.flatMap(x=>doseEvents(x,10,12)).map(e=>e.t),[0,10,20])});
 
-test("a step can dose at its own interval",()=>{
+test("a step's own interval is the gap before each of its doses",()=>{
  const s=[{dose:2.5,doses:2},{dose:5,doses:2,freq:10},{dose:7.5,doses:1}];assert.equal(layout(s,7),6);
- assert.deepEqual(s.map(x=>[x.start,x.end,x.from,x.to]),[[0,14,1,2],[14,34,3,5],[34,41,5,6]]);
- assert.deepEqual(s.flatMap(x=>doseEvents(x,7,12)).map(e=>e.t),[0,7,14,24,34]);
+ assert.deepEqual(s.map(x=>[x.start,x.end,x.from,x.to]),[[0,17,1,3],[17,34,3,5],[34,41,5,6]]);
+ assert.deepEqual(s.flatMap(x=>doseEvents(x,7,12)).map(e=>e.t),[0,7,17,27,34]);
+ const t=[{dose:5,doses:3,freq:10},{dose:10,doses:3,freq:20}];layout(t,7);
+ assert.deepEqual(t.flatMap(x=>doseEvents(x,7,20)).map(e=>e.t),[0,10,20,40,60,80]);
  assert.equal(stepFreq({freq:0},7),7);const z=[{dose:1,doses:1,freq:0}];layout(z,7);assert.equal("freq" in z[0],false)});
 
 test("a 0 mg step is a pause",()=>{
