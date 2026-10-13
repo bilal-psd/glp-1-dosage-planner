@@ -28,8 +28,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type Drug = { halfLife: number; bioavailability: number; volumeOfDistribution: number; tmax: number; name: string }
-// A step is a dose repeated `doses` times; layout() adds start/end (days, end-exclusive) and from/to (calendar weeks).
-type Step = { dose: number; doses: number; pen?: number; clicks?: number; start?: number; end?: number; from?: number; to?: number }
+// A step is a dose repeated `doses` times, every `freq` days (the plan's interval when unset); layout() adds start/end
+// (days, end-exclusive) and from/to (calendar weeks).
+type Step = { dose: number; doses: number; freq?: number; pen?: number; clicks?: number; start?: number; end?: number; from?: number; to?: number }
 type Plan = { start: string; weeks: number; drug: string; freq: number; clicks: boolean; gold: boolean; pens: { strength: number; gold?: boolean }[]; steps: Step[] }
 type DoseEvent = { t: number; dose: number }
 
@@ -40,6 +41,7 @@ const doseEvents = M.doseEvents as (s: Step, freq: number, weeks: number) => Dos
 const simulate = M.simulate as (e: DoseEvent[], drug: string, weeks: number) => [number, number][]
 const amountBefore = M.amountBefore as (e: DoseEvent[], drug: string, t: number) => number
 const stack = M.layout as (steps: Step[], freq: number) => number
+const stepFreq = M.stepFreq as (s: Step, freq: number) => number
 const upgradePlan = M.upgradePlan as (p: Plan) => Plan
 const KEY = "glp1-plotter:v1"
 // Shown once at the bottom of the page, and in the PNG and on every PDF page.
@@ -53,7 +55,7 @@ const mgFmt = (v: number) => (+v).toFixed(2).replace(/\.?0+$/, "")
 const shortName = (d: string) => DRUGS[d].name.replace(/ \(.*/, "")
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
 // The plan as plain JSON: what a share link carries and what a plan file holds (with a small wrapper).
-const planJson = (plan: Plan) => ({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, doses, pen, clicks }) => ({ dose, doses, pen, clicks })) })
+const planJson = (plan: Plan) => ({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, doses, freq, pen, clicks }) => ({ dose, doses, freq, pen, clicks })) })
 // What Reset leaves: today's date, one 2.5 mg dose every 7 days, entered in mg (user's choice: a blank plan, not the example).
 const blankPlan = (): Plan => ({ start: isoDay(new Date()), weeks: 12, drug: TIRZ, freq: 7, clicks: false, gold: false, pens: [], steps: [{ dose: 2.5, doses: 1 }] })
 // Stacks the steps and stretches the chart to fit them (never shrinks it). Clicks mode needs tirzepatide and a pen for
@@ -312,12 +314,38 @@ export default function App() {
     return x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear() ? range.replace(/\s*–\s*/, "–") : range
   }
 
+  // ---- A step's days between doses: "every 7 days" under its Doses field, opening a stepper. A step without its own
+  // interval follows the plan's "Dose every" (and shows it muted); setting it back to the plan's value clears it.
+  function intervalPicker(i: number) {
+    const s = steps[i], own = s.freq != null, f = stepFreq(s, plan.freq)
+    const setFreq = (v: number | null) => update(p => { if (v == null || v === p.freq) delete p.steps[i].freq; else p.steps[i].freq = v })
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button type="button" aria-label={`Step ${i + 1} days between doses: ${plural(f, "day")}${own ? "" : " (the plan's)"}`}
+            className={cn("rounded-sm px-1 text-xs whitespace-nowrap underline decoration-dotted underline-offset-3 transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50", own ? "text-foreground" : "text-muted-foreground")}>
+            every {plural(f, "day")}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="flex w-56 flex-col gap-3" align="end">
+          <Field>
+            <FieldLabel htmlFor={`freq-${i}`}>Step {i + 1}: dose every</FieldLabel>
+            <Stepper id={`freq-${i}`} value={f} step={0.5} min={0.5} max={30} unit={["day", "days", "d"]} onChange={v => setFreq(v)} />
+          </Field>
+          {own
+            ? <Button variant="outline" size="sm" onClick={() => setFreq(null)}>Use the plan's {plural(plan.freq, "day")}</Button>
+            : <p className="text-xs text-muted-foreground">Follows the plan's “Dose every” until you change it here.</p>}
+        </PopoverContent>
+      </Popover>
+    )
+  }
+
   // ---- One step as a table row; clicks mode gets − / slider / +, mg mode a number field.
   function stepRow(i: number) {
     const s = steps[i], n = perStep[i].length
     const removable = steps.length > 1 && !(plan.clicks && steps.filter(x => x.pen === s.pen).length === 1)
     const setClicksTo = (c: number) => update(p => { p.steps[i].clicks = Math.min(CLICKS, Math.max(0, c)) })
-    const dates = s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq) : dayRange(s.start!, s.end! - 1)
+    const dates = s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * stepFreq(s, plan.freq)) : dayRange(s.start!, s.end! - 1)
     // Phones: two columns. Left: what the step is, then the slider; right: the Doses field above the clicks field, the same
     // width and right edge as the pen's strength menu (user's pick "B2"). In clicks mode the mg per dose heads the step,
     // right above the slider that sets it. No remove ×: at 1 dose the Doses field's − becomes a bin.
@@ -355,9 +383,10 @@ export default function App() {
             : <div className="font-semibold">{s.dose > 0 ? `${mgFmt(s.dose * n)} mg` : "pause"}</div>}
         </TableCell>
         <TableCell className={plan.clicks ? "max-sm:col-start-2 max-sm:row-start-1" : undefined}>
-          <div className="flex justify-end">
+          <div className="flex flex-col items-end gap-1">
             <CountField value={s.doses} unit={s.doses === 1 ? "dose" : "doses"} label={`Step ${i + 1} number of doses`} onChange={v => update(p => { p.steps[i].doses = v })}
               onRemove={removable ? () => update(p => { p.steps.splice(i, 1) }) : undefined} removeLabel={`Remove step ${i + 1}`} />
+            {intervalPicker(i)}
           </div>
         </TableCell>
       </TableRow>
@@ -443,18 +472,18 @@ export default function App() {
       title: `${shortName(plan.drug)} dosing plan`,
       subtitle: `${route.charAt(0).toUpperCase()}${route.slice(1)} · estimated amount in the body`,
       made: `Made ${new Date().toLocaleDateString(loc, { day: "numeric", month: "short", year: "numeric" })}`,
-      facts: [["Starts", full(0)], ["Dose every", plural(plan.freq, "day")], ["Doses", `${events.length} · ${mgFmt(totalMg)} mg`], ["Highest in body", `${peak[1].toFixed(1)} mg · ${dayLabel(peak[0], false, loc)}`]],
+      facts: [["Starts", full(0)], ["Dose every", plural(plan.freq, "day") + (steps.some(s => s.freq != null) ? ", or per step" : "")], ["Doses", `${events.length} · ${mgFmt(totalMg)} mg`], ["Highest in body", `${peak[1].toFixed(1)} mg · ${dayLabel(peak[0], false, loc)}`]],
       pts, end, yMax, yTicks,
       xTicks: ticks.map(t => ({ t, label: dayLabel(t, false, loc) })),
       bands: runs.map(r => ({ start: r.start, end: r.end, fill: r.dose > 0 ? PAPER_DOSE_COLOURS[DOSE_COLOURS.indexOf(doseColour.get(r.dose)!)] : PAPER_PAUSE, label: r.dose > 0 ? `${mgFmt(r.dose)} mg` : "pause" }))
         .concat(last && last.end < end ? [{ start: last.end, end, fill: PAPER_AFTER, label: "" }] : []),
       pens: penSpans.map(({ start, end, label }) => ({ start, end, label })),
       steps: {
-        head: ["Step", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Per dose", "Doses", "Dates", "Total"],
-        right: [false, ...(plan.clicks ? [false, true] : []), true, true, false, true],
-        widths: [5, ...(plan.clicks ? [10, 6] : []), 9, 7, 18, 9],
-        rows: steps.map((s, i) => [String(i + 1), ...(plan.clicks ? [pen(s), String(s.clicks ?? 0)] : []), s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause", String(s.doses),
-          s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * plan.freq, loc) : dayRange(s.start!, s.end! - 1, loc), s.dose > 0 ? `${mgFmt(s.dose * perStep[i].length)} mg` : "-"]),
+        head: ["Step", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Per dose", "Doses", "Every", "Dates", "Total"],
+        right: [false, ...(plan.clicks ? [false, true] : []), true, true, true, false, true],
+        widths: [5, ...(plan.clicks ? [10, 6] : []), 9, 7, 7, 18, 9],
+        rows: steps.map((s, i) => [String(i + 1), ...(plan.clicks ? [pen(s), String(s.clicks ?? 0)] : []), s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause", String(s.doses), plural(stepFreq(s, plan.freq), "day"),
+          s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * stepFreq(s, plan.freq), loc) : dayRange(s.start!, s.end! - 1, loc), s.dose > 0 ? `${mgFmt(s.dose * perStep[i].length)} mg` : "-"]),
       },
       doses: {
         head: ["Date", "Week", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Dose", "In body before"],

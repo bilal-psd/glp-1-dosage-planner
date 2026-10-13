@@ -8,7 +8,7 @@ Plot the estimated amount of a GLP-1 medication in your body over a titration pl
 
 ## What it does
 
-- **Plan in steps.** Each step is a dose and a number of doses, dosed every N days. Pause steps are allowed.
+- **Plan in steps.** Each step is a dose and a number of doses, dosed every N days (the plan's interval, or the step's own). Pause steps are allowed.
 - **See the curve.** The chart shows the estimated mg in the body over time, shaded by dose, with today's level, the next dose and the peak.
 - **Plan KwikPens by clicks** (tirzepatide). Pick each pen's strength, dial doses in clicks (60 clicks = one labelled dose) and see how many clicks and mg each pen has left, with or without the golden dose.
 - **Share and export.** Copy a share link, export the plan as JSON (and import it again), or export the chart as PNG or the whole plan as a PDF.

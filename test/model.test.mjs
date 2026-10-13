@@ -2,7 +2,7 @@
 // Reference values were produced by the original inline model in index.html (commit 897be4a) before it moved to model.js.
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {DRUGS,TIRZ,EXAMPLE,solveKa,doseEvents,simulate,amountBefore,layout,toClicks,clicksToMg,fromGlappParams,weeksToDoses,upgradePlan} from "../model.js";
+import {DRUGS,TIRZ,EXAMPLE,solveKa,doseEvents,simulate,amountBefore,layout,toClicks,clicksToMg,fromGlappParams,weeksToDoses,upgradePlan,stepFreq} from "../model.js";
 
 const close=(a,b,eps=1e-6)=>assert.ok(Math.abs(a-b)<eps,`${a} ≉ ${b}`);
 const kaOf=d=>solveKa(DRUGS[d].tmax,Math.LN2/DRUGS[d].halfLife);
@@ -28,6 +28,12 @@ test("example dose days: 7, 1 and 1 doses every 7 days",()=>{
 test("a step keeps its dose count when the interval changes",()=>{
  const s=[{dose:2.5,doses:2},{dose:5,doses:1}];assert.equal(layout(s,10),5);
  assert.deepEqual(s.flatMap(x=>doseEvents(x,10,12)).map(e=>e.t),[0,10,20])});
+
+test("a step can dose at its own interval",()=>{
+ const s=[{dose:2.5,doses:2},{dose:5,doses:2,freq:10},{dose:7.5,doses:1}];assert.equal(layout(s,7),6);
+ assert.deepEqual(s.map(x=>[x.start,x.end,x.from,x.to]),[[0,14,1,2],[14,34,3,5],[34,41,5,6]]);
+ assert.deepEqual(s.flatMap(x=>doseEvents(x,7,12)).map(e=>e.t),[0,7,14,24,34]);
+ assert.equal(stepFreq({freq:0},7),7);const z=[{dose:1,doses:1,freq:0}];layout(z,7);assert.equal("freq" in z[0],false)});
 
 test("a 0 mg step is a pause",()=>{
  const s=[{dose:2.5,doses:1},{dose:0,doses:2},{dose:5,doses:1}];layout(s,7);
@@ -62,6 +68,11 @@ test("glapp links: gaps become pauses, extras are reported",()=>{
  assert.deepEqual(state.steps.map(s=>[s.dose,s.doses]),[[2.5,4],[0,2],[5,2]]);
  assert.equal(state.start,"2026-01-05");assert.equal(state.weeks,10);assert.deepEqual(notes,[]);
  assert.equal(fromGlappParams(new URLSearchParams("")),null)});
+
+test("glapp links: a row's own frequency is kept on its step",()=>{
+ const q=new URLSearchParams("medication1=tirzepatide-injection&dose1=2.5&from1=1&to1=4&frequency1=7&medication2=tirzepatide-injection&dose2=5&from2=5&to2=8&frequency2=14");
+ const {state,notes}=fromGlappParams(q);
+ assert.equal(state.freq,7);assert.deepEqual(state.steps,[{dose:2.5,doses:4},{dose:5,doses:2,freq:14}]);assert.deepEqual(notes,[])});
 
 test("glapp links: a row inside an earlier one is cut, not added",()=>{
  const q=new URLSearchParams("medication1=tirzepatide-injection&dose1=2.5&from1=1&to1=8&frequency1=7&medication2=tirzepatide-injection&dose2=5&from2=3&to2=5&frequency2=7");

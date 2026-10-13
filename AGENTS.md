@@ -49,8 +49,9 @@ Ported from glapp.io's plotter so results are directly comparable. Don't change 
 
 ## Scheduling rules
 
-- A plan is one medication, one "every N days" interval, and an ordered list of steps. Each step has a dose (mg, or clicks on a pen) and a number of doses.
-- Steps run back to back in dose slots (`layout(steps, freq)`): dose k of the plan falls on day `k·freq`. A dose of 0 is a pause step.
+- A plan is one medication, a default "every N days" interval, and an ordered list of steps. Each step has a dose (mg, or clicks on a pen), a number of doses and, optionally, its own interval (`step.freq`; `stepFreq(s, freq)` falls back to the plan's).
+- Steps run back to back in dose slots (`layout(steps, freq)`): a step of n doses takes n × its interval days, so with no per-step intervals dose k of the plan falls on day `k·freq`. A dose of 0 is a pause step.
+- glapp-style links keep each row's own `frequencyN` as that step's interval when it differs from the first row's.
 - If the steps run past the chart length, the page extends the length; it never shrinks it.
 - KwikPen clicks (tirzepatide only): 60 clicks = one labelled dose, so `mg = clicks / 60 × strength`. A pen holds 240 clicks, or 300 with its "Golden dose" switch on.
 - Older plans measured steps in weeks; `upgradePlan()` converts them (`⌈weeks·7 / freq⌉` doses). Keep it working: saved plans and share links in the wild still use the old shape.
