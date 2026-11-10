@@ -1,13 +1,14 @@
 // The GLP-1 plotter, built from shadcn/ui components. The maths and scheduling rules are in ../model.js; the plan is saved
 // in localStorage "glp1-plotter:v1" and shared as a #plan= link.
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
-import { CalendarDays, Check, Download, FileText, Image as ImageIcon, Link2, Minus, Plus, Trash2, Upload, X } from "lucide-react"
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from "recharts"
+import { CalendarDays, Check, Download, FileText, Image as ImageIcon, Info, Link2, Minus, Plus, Trash2, Upload, X } from "lucide-react"
 
 import * as M from "../../model.js"
 import { cn } from "@/lib/utils"
 import { type ExportData, PAPER_AFTER, PAPER_DOSE_COLOURS, PAPER_PAUSE, download, exportPdf, exportPng } from "@/lib/export"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -15,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { type ChartConfig, ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -50,9 +51,10 @@ const DISCLAIMER = "Estimate from a one-compartment model with glapp.io's drug c
 // Six steps of the data teal (OKLCH hue 182), deep to light, for the area under the curve; kept darker than the curve itself.
 const DOSE_COLOURS = Array.from({ length: 6 }, (_, i) => { const f = i / 5; return `oklch(${(0.36 + 0.30 * f).toFixed(3)} ${(0.055 + 0.045 * f).toFixed(3)} 182)` })
 const NO_DOSE_COLOUR = "#2a2b30", AFTER_COLOUR = "#1e2a29"
+// Room right of the plot, enough for half of the last date label ("24 Oct"), which sits on the plot's right edge.
+const PLOT_RIGHT = 20
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 const mgFmt = (v: number) => (+v).toFixed(2).replace(/\.?0+$/, "")
-const shortName = (d: string) => DRUGS[d].name.replace(/ \(.*/, "")
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
 // The plan as plain JSON: what a share link carries and what a plan file holds (with a small wrapper).
 const planJson = (plan: Plan) => ({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, doses, freq, pen, clicks }) => ({ dose, doses, freq, pen, clicks })) })
@@ -87,6 +89,22 @@ function initialPlan(): { plan: Plan; notes: string[] } {
     if (valid(v)) return { plan: upgradePlan(v), notes }
   } catch { /* fall through */ }
   return { plan: structuredClone(EXAMPLE), notes }
+}
+
+// Every fact on the page has its own box: a small label, the value, and an optional second line under it (a date,
+// the mg beside a click count). Never several facts joined with dots in one line of text (user's request).
+function Fact({ label, value, sub, warn, className }: { label: string; value: ReactNode; sub?: ReactNode; warn?: boolean; className?: string }) {
+  return (
+    <div className={cn("min-w-0 rounded-lg border px-3 py-2", warn && "border-destructive/40 bg-destructive/10", className)}>
+      <div className={cn("text-xs text-muted-foreground", warn && "text-destructive")}>{label}</div>
+      <div className={cn("font-medium tabular-nums", warn && "text-destructive")}>{value}</div>
+      {sub != null && <div className={cn("text-xs text-muted-foreground tabular-nums", warn && "text-destructive/80")}>{sub}</div>}
+    </div>
+  )
+}
+// Short facts about a card (its weeks, its dose count) as chips under the title.
+function Chips({ items }: { items: string[] }) {
+  return <div className="flex flex-wrap gap-1.5">{items.map(t => <Badge key={t} variant="outline" className="font-normal text-muted-foreground tabular-nums">{t}</Badge>)}</div>
 }
 
 // A number field with its unit and −/+ inside one field-shaped box: the value starts at the same inset as the
@@ -152,7 +170,7 @@ function Stepper({ id, value, onChange, step, min, max, unit }: {
       <label htmlFor={id} className="flex min-w-0 flex-1 cursor-text items-baseline gap-1">
         <input id={id} type="number" inputMode="decimal" min={min} max={max} step={step} value={draft}
           style={{ width: `${Math.max(draft.length, 1) + 0.25}ch` }}
-          className="min-w-0 bg-transparent tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="shrink-0 bg-transparent tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           onChange={e => { setDraft(e.target.value); const v = +e.target.value; if (e.target.value !== "" && v >= min && v <= max) onChange(v) }}
           onBlur={() => setDraft(String(value))} />
         {/* Full unit when the field has room (more room needed with 36px touch buttons); the short form otherwise. */}
@@ -173,6 +191,9 @@ export default function App() {
   const [notes, setNotes] = useState<string[]>(firstNotes)
   // Notes from a mode switch fade in; notes present at page load don't. Dismissing fades them out first.
   const [notesAnim, setNotesAnim] = useState<"none" | "in" | "out">("none")
+  // Doses that switching to clicks couldn't dial exactly. Shown on their own step, not at the top of the page; each one
+  // shows only while its step still has the clicks and pen strength it was rounded to, and they clear when steps move.
+  const [dial, setDial] = useState<{ i: number; was: number; now: number; clicks: number; strength: number }[]>([])
   const [copied, setCopied] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
   const [plotWidth, setPlotWidth] = useState(0)
@@ -210,7 +231,7 @@ export default function App() {
   useEffect(() => {
     const el = chartRef.current
     if (!el) return
-    const measure = () => setPlotWidth(el.clientWidth - 40)
+    const measure = () => setPlotWidth(el.clientWidth - 32 - PLOT_RIGHT)
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
@@ -237,35 +258,38 @@ export default function App() {
   // Each pen's span on the chart (its first step's start to its last step's end), for the pen row under the dates.
   const penSpans = plan.clicks ? plan.pens.flatMap((pen, pi) => {
     const own = steps.filter(s => s.pen === pi && s.start! < end)
-    return own.length ? [{ pi, start: own[0].start!, end: Math.min(own[own.length - 1].end!, end), label: `Pen ${pi + 1} · ${pen.strength} mg` }] : []
+    return own.length ? [{ pi, start: own[0].start!, end: Math.min(own[own.length - 1].end!, end), name: `Pen ${pi + 1}`, strength: `${pen.strength} mg` }] : []
   }) : []
 
   function setClicks(on: boolean) {
     if (on === plan.clicks || (on && !clicksAllowed)) return
     // Pure: the notes come from a dry run on the current plan, not from inside the setPlan updater (which may run twice).
-    const convert = (p: Plan, msg: string[]) => {
+    const convert = (p: Plan, msg: typeof dial) => {
       if (on) {
         if (!p.pens.length || p.steps.some(s => s.pen == null || !p.pens[s.pen])) {
           const max = Math.max(...p.steps.map(s => s.dose)), str = STRENGTHS.find(v => v >= max) ?? 15
           // No note: the pen card shows its strength, and its meter turns red with a hint if the steps don't fit (user's call).
           p.pens = [{ strength: str }]; p.steps.forEach(s => { s.pen = 0 })
         }
-        p.steps.forEach((s, i) => {
+        const rounded = new Map<Step, number>()
+        p.steps.forEach(s => {
           const str = p.pens[s.pen!].strength, before = s.dose
           s.clicks = M.toClicks(s.dose, str)
-          const after = M.clicksToMg(s.clicks!, str)
-          if (Math.abs(after - before) > 1e-6) msg.push(`Step ${i + 1}: ${mgFmt(before)} mg can't be dialled exactly on a ${str} mg pen, so it's now ${s.clicks} clicks = ${mgFmt(after)} mg.`)
+          if (Math.abs(M.clicksToMg(s.clicks!, str) - before) > 1e-6) rounded.set(s, before)
         })
         p.steps.sort((a, b) => a.pen! - b.pen!)
+        // Indices after the sort, which is where the steps are shown.
+        p.steps.forEach((s, i) => { if (rounded.has(s)) { const str = p.pens[s.pen!].strength; msg.push({ i, was: rounded.get(s)!, now: M.clicksToMg(s.clicks!, str), clicks: s.clicks!, strength: str }) } })
       }
       p.clicks = on
     }
-    const msg: string[] = []
+    const msg: typeof dial = []
     convert(structuredClone(plan), msg)
     update(p => convert(p, []))
-    setNotes(msg)
-    setNotesAnim("in")
+    setDial(msg)
   }
+  // Adding or removing a step or pen moves steps to new indices, so the rounding notes go.
+  const restructure = (fn: (p: Plan) => void) => { setDial([]); update(fn) }
 
   async function share() {
     const json = JSON.stringify(planJson(plan))
@@ -276,7 +300,7 @@ export default function App() {
   const note = (msg: string) => { setNotes([msg]); setNotesAnim("in") }
   function resetAll() {
     try { localStorage.removeItem(KEY) } catch { /* private mode */ }
-    setNotes([]); setNotesAnim("none"); setPlan(blankPlan())
+    setNotes([]); setNotesAnim("none"); setDial([]); setPlan(blankPlan())
   }
   function exportJson() {
     const file = { app: "glp1-plotter", version: 1, plan: planJson(plan) }
@@ -301,7 +325,6 @@ export default function App() {
   const iconFade = "transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)]"
   const iconOn = "scale-100 opacity-100 blur-0", iconOff = "scale-[0.25] opacity-0 blur-[4px]"
 
-  const summary = [shortName(plan.drug), plan.clicks ? plural(plan.pens.length, "pen") : null, `${plan.weeks} weeks`].filter(Boolean).join(" · ")
   const weekSpan = (a: number, b: number) => (a === b ? `Week ${a}` : `Weeks ${a}–${b}`)
   // "19 Sept", "5–12 Sept" within one month, "29 Aug – 5 Sept" across months.
   const dayRange = (a: number, b: number, loc?: string) => {
@@ -346,21 +369,26 @@ export default function App() {
     const removable = steps.length > 1 && !(plan.clicks && steps.filter(x => x.pen === s.pen).length === 1)
     const setClicksTo = (c: number) => update(p => { p.steps[i].clicks = Math.min(CLICKS, Math.max(0, c)) })
     const dates = s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * stepFreq(s, plan.freq)) : dayRange(s.start!, s.end! - 1)
+    const pause = <Badge variant="secondary" className="font-normal">Pause</Badge>
+    const rounded = plan.clicks ? dial.find(d => d.i === i && d.clicks === s.clicks && d.strength === plan.pens[s.pen!]?.strength) : undefined
     // Phones: two columns. Left: what the step is, then the slider; right: the Doses field above the clicks field, the same
     // width and right edge as the pen's strength menu (user's pick "B2"). In clicks mode the mg per dose heads the step,
     // right above the slider that sets it. No remove ×: at 1 dose the Doses field's − becomes a bin.
-    return (
-      <TableRow key={i} className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_7.5rem] max-sm:items-center max-sm:gap-3 max-sm:py-4 max-sm:*:p-0">
+    return [
+      <TableRow key={i} className={cn("max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_7.5rem] max-sm:items-center max-sm:gap-3 max-sm:py-4 max-sm:*:p-0", rounded && "border-b-0")}>
         <TableCell className={plan.clicks ? undefined : "max-sm:col-span-2"}>
           {plan.clicks && (
-            <div className="sm:hidden">
-              <div className={s.dose > 0 ? "font-semibold tabular-nums" : "text-muted-foreground"}>{s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause"}</div>
-              <div className="text-xs text-muted-foreground"><span className="whitespace-nowrap">Step {i + 1} ·</span> <span className="whitespace-nowrap">{dates}</span></div>
+            <div className="flex flex-col gap-1 sm:hidden">
+              <div className="font-semibold tabular-nums">{s.dose > 0 ? `${mgFmt(s.dose)} mg` : pause}</div>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                <Badge variant="outline" className="font-normal text-muted-foreground">Step {i + 1}</Badge>
+                <span className="whitespace-nowrap">{dates}</span>
+              </div>
             </div>
           )}
           <div className={plan.clicks ? "max-sm:hidden" : undefined}>
-            <div>Step {i + 1}</div>
-            <div className="text-xs text-muted-foreground">{s.dose > 0 ? dates : `Pause · ${dates}`}</div>
+            <div className="flex items-center gap-2">Step {i + 1}{s.dose > 0 ? null : pause}</div>
+            <div className="text-xs text-muted-foreground">{dates}</div>
           </div>
         </TableCell>
         <TableCell className={plan.clicks ? "max-sm:col-span-2 max-sm:col-start-1 max-sm:row-start-2" : undefined}>
@@ -378,19 +406,36 @@ export default function App() {
           )}
         </TableCell>
         <TableCell className="text-end max-sm:hidden">
-          {plan.clicks
-            ? <div className="font-semibold">{s.clicks ? `${mgFmt(s.dose)} mg` : "pause"}</div>
-            : <div className="font-semibold">{s.dose > 0 ? `${mgFmt(s.dose * n)} mg` : "pause"}</div>}
+          {/* The result of the inputs, so quieter than them: the mg a click count makes, or a mg step's total. */}
+          {s.dose > 0
+            ? <div className={cn("tabular-nums", plan.clicks ? "font-medium" : "text-muted-foreground")}>{mgFmt(plan.clicks ? s.dose : s.dose * n)} mg</div>
+            : <div className="text-muted-foreground">–</div>}
         </TableCell>
         <TableCell className={plan.clicks ? "max-sm:col-start-2 max-sm:row-start-1" : undefined}>
           <div className="flex flex-col items-end gap-1">
             <CountField value={s.doses} unit={s.doses === 1 ? "dose" : "doses"} label={`Step ${i + 1} number of doses`} onChange={v => update(p => { p.steps[i].doses = v })}
-              onRemove={removable ? () => update(p => { p.steps.splice(i, 1) }) : undefined} removeLabel={`Remove step ${i + 1}`} />
+              onRemove={removable ? () => restructure(p => { p.steps.splice(i, 1) }) : undefined} removeLabel={`Remove step ${i + 1}`} />
             {intervalPicker(i)}
           </div>
         </TableCell>
-      </TableRow>
-    )
+      </TableRow>,
+      // A dose that couldn't be dialled exactly: said on its own step, with what was asked and what it is now.
+      rounded && (
+        <TableRow key={`${i}-dial`} className="hover:bg-transparent max-sm:block max-sm:pb-4">
+          <TableCell colSpan={4} className="pt-0 max-sm:block max-sm:p-0">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 py-1.5 ps-3 pe-1 text-xs whitespace-normal">
+              <Info className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
+              <span className="text-muted-foreground">Rounded to the nearest click on a {rounded.strength} mg pen</span>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="outline" className="font-normal text-muted-foreground tabular-nums">Asked {mgFmt(rounded.was)} mg</Badge>
+                <Badge variant="secondary" className="font-normal tabular-nums">Now {mgFmt(rounded.now)} mg</Badge>
+              </div>
+              <Button variant="ghost" size="icon-xs" className="ms-auto text-muted-foreground" aria-label="Dismiss" onClick={() => setDial(d => d.filter(x => x !== rounded))}><X /></Button>
+            </div>
+          </TableCell>
+        </TableRow>
+      ),
+    ]
   }
 
   function stepTable(indices: number[]) {
@@ -414,8 +459,10 @@ export default function App() {
   // ---- Chart
   const chartConfig = { mg: { label: "In body", color: "var(--chart-1)" } } satisfies ChartConfig
   const data = pts.map(([t, v]) => ({ t, mg: +v.toFixed(3) }))
-  const tickEvery = 7 * Math.max(1, Math.ceil(plan.weeks / 8))
-  const ticks = Array.from({ length: Math.floor(end / tickEvery) + 1 }, (_, k) => k * tickEvery)
+  // Date ticks a whole number of weeks apart, as many as fit (≈60px each) up to 9, so Recharts never has to drop one
+  // and leave an uneven gap. The exports use their own fixed spacing.
+  const tickSpan = (n: number) => { const every = 7 * Math.max(1, Math.ceil(plan.weeks / n)); return Array.from({ length: Math.floor(end / every) + 1 }, (_, k) => k * every) }
+  const ticks = tickSpan(plotWidth > 0 ? Math.max(1, Math.min(8, Math.floor(plotWidth / 60) - 1)) : 8)
   const showToday = today != null && today >= 0 && today <= end
   const yStep = peak[1] > 8 ? 4 : peak[1] > 4 ? 2 : 1, yMax = Math.max(yStep, Math.ceil(peak[1] / yStep) * yStep)
   const yTicks = Array.from({ length: yMax / yStep + 1 }, (_, k) => k * yStep)
@@ -428,11 +475,6 @@ export default function App() {
     else acc.push({ dose: d, start: s.start!, end: s.end! })
     return acc
   }, []).filter(r => r.start < end)
-  // A run's label shows only when its band is wide enough for the text (≈7.5px per character at 13px).
-  const runLabel = (r: { dose: number; start: number; end: number }) => {
-    const text = r.dose > 0 ? `${mgFmt(r.dose)} mg` : "pause"
-    return (Math.min(r.end, end) - r.start) / end * plotWidth >= text.length * 7.5 + 12 ? text : ""
-  }
   // The area under the curve is coloured by dose level (chosen by the user from a comparison, option "B1"):
   // - Each distinct dose gets a colour by its position from lowest to highest, cycling through DOSE_COLOURS.
   // - Neighbouring dose levels never share a colour: if one would, the later (higher) dose moves to the next free colour,
@@ -454,42 +496,79 @@ export default function App() {
   // Hard colour stops along x (the area spans the whole x domain, so 0–1 of its box is day 0 to the chart end).
   const doseStops = runs.flatMap(r => { const c = r.dose > 0 ? doseColour.get(r.dose)! : NO_DOSE_COLOUR; return [[r.start / end, c], [Math.min(r.end, end) / end, c]] as [number, string][] })
     .concat(runs.length && runs[runs.length - 1].end < end ? [[runs[runs.length - 1].end / end, AFTER_COLOUR], [1, AFTER_COLOUR]] : [])
+  // Each dose level's label (its colour swatch and mg) above the plot, starting where the level starts. A label may run past
+  // its own band; if the label before it is in the way it slides right, else moves up to a second row. Labels near the
+  // right edge move left to stay inside the plot. Only a label with no room on either row is left out (the tooltip still
+  // names every dose). Width estimate: ≈7px per character at 12px, plus the swatch.
+  const runLabels: { x: number; row: number; text: string; colour: string }[] = []
+  if (plotWidth > 0) {
+    const rowEnds = [-Infinity, -Infinity]
+    for (const r of runs) {
+      const text = r.dose > 0 ? `${mgFmt(r.dose)} mg` : "Pause", w = text.length * 7 + 14
+      const x0 = Math.max(0, Math.min(r.start / end * plotWidth + 2, plotWidth - w))
+      const limit = Math.min(plotWidth, Math.max(Math.min(r.end, end) / end * plotWidth - 2, x0 + w))
+      for (let row = 0; row < rowEnds.length; row++) {
+        const at = Math.max(x0, rowEnds[row])
+        if (at + w <= limit) { runLabels.push({ x: at, row, text, colour: r.dose > 0 ? doseColour.get(r.dose)! : NO_DOSE_COLOUR }); rowEnds[row] = at + w + 8; break }
+      }
+    }
+  }
+  const twoRows = runLabels.some(l => l.row === 1)
 
   // ---- Dose rows
   const doseRows = steps.flatMap((s, i) => perStep[i].map(e => ({ e, s }))).sort((a, b) => a.e.t - b.e.t)
   const totalMg = events.reduce((n, e) => n + e.dose, 0)
   const totalClicks = plan.clicks ? doseRows.reduce((n, r) => n + (r.s.clicks ?? 0), 0) : 0
 
+  // ---- Summary: Now, Next dose and Highest, each a value with the date it's for on its own line.
+  // Before the start or once the medicine is gone, Now says so instead of showing ≈ 0.0 mg.
+  const lastDose = events[events.length - 1]
+  const nowMg = today == null || today < 0 ? 0 : amountBefore(events, plan.drug, today)
+  const summary: { label: string; value: ReactNode; sub?: string }[] = [
+    today == null ? { label: "Now", value: "–" }
+      : today < 0 ? { label: "Now", value: "Not started", sub: `Starts ${dayLabel(0, true)}` }
+      : lastDose && today > lastDose.t && nowMg < 0.05 ? { label: "Now", value: "Finished", sub: `Last dose ${dayLabel(lastDose.t, true)}` }
+      : { label: "Now", value: `≈ ${nowMg.toFixed(1)} mg`, sub: new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) },
+    !next ? { label: "Next dose", value: plan.clicks && !penLeft ? "None left" : "None planned" }
+      : { label: "Next dose", sub: Math.floor(next.t) === Math.floor(today!) ? "Today" : dayLabel(next.t, true),
+          value: plan.clicks ? <span className="flex flex-wrap items-center gap-x-1.5">{mgFmt(next.dose)} mg<Badge variant="outline" className="h-4 px-1.5 font-normal text-muted-foreground">{nextStep?.clicks} cl</Badge></span> : `${mgFmt(next.dose)} mg` },
+    { label: "Highest", value: `≈ ${peak[1].toFixed(1)} mg`, sub: dayLabel(peak[0], true) },
+  ]
+  const addPen = () => restructure(p => {
+    const l = p.steps[p.steps.length - 1]
+    p.pens.push({ strength: p.pens[l.pen!].strength }); p.steps.push({ ...l, doses: 1, pen: p.pens.length - 1 })
+  })
+
   // ---- What the PDF and PNG show: the same plan, chart and doses as the page, in the light paper colours.
   function exportData(): ExportData {
-    const name = DRUGS[plan.drug].name, route = name.match(/\((.*)\)/)?.[1] ?? ""
     // The PDF's Helvetica only draws Latin-1: dates in a locale that needs other letters (ja, ru, ar…) use British English.
     const loc = /^[\x20-\xff\u2009\u202f]*$/.test(new Date(2026, 8, 30).toLocaleDateString(undefined, { weekday: "short", month: "short" })) ? undefined : "en-GB"
     const full = (t: number) => dateAt(t)?.toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) ?? `Day ${Math.floor(t)}`
-    const pen = (s: Step) => `${s.pen! + 1} · ${plan.pens[s.pen!].strength} mg`
+    // Pen and its strength are two columns, not one "1 · 5 mg" cell.
+    const pen = (s: Step) => [`Pen ${s.pen! + 1}`, `${plan.pens[s.pen!].strength} mg`]
     const last = runs[runs.length - 1]
     return {
-      title: `${shortName(plan.drug)} dosing plan`,
-      subtitle: `${route.charAt(0).toUpperCase()}${route.slice(1)} · estimated amount in the body`,
+      title: `${DRUGS[plan.drug].name}: dosing plan`,
+      subtitle: "Estimated amount in the body",
       made: `Made ${new Date().toLocaleDateString(loc, { day: "numeric", month: "short", year: "numeric" })}`,
-      facts: [["Starts", full(0)], ["Dose every", plural(plan.freq, "day") + (steps.some(s => s.freq != null) ? ", or per step" : "")], ["Doses", `${events.length} · ${mgFmt(totalMg)} mg`], ["Highest in body", `${peak[1].toFixed(1)} mg · ${dayLabel(peak[0], false, loc)}`]],
+      facts: [["Starts", full(0)], steps.some(s => s.freq != null) ? ["Dose every", plural(plan.freq, "day"), "Some steps differ"] : ["Dose every", plural(plan.freq, "day")], ["Doses", String(events.length)], ["Total", `${mgFmt(totalMg)} mg`], ["Highest in body", `${peak[1].toFixed(1)} mg`, dayLabel(peak[0], true, loc)]],
       pts, end, yMax, yTicks,
-      xTicks: ticks.map(t => ({ t, label: dayLabel(t, false, loc) })),
+      xTicks: tickSpan(8).map(t => ({ t, label: dayLabel(t, false, loc) })),
       bands: runs.map(r => ({ start: r.start, end: r.end, fill: r.dose > 0 ? PAPER_DOSE_COLOURS[DOSE_COLOURS.indexOf(doseColour.get(r.dose)!)] : PAPER_PAUSE, label: r.dose > 0 ? `${mgFmt(r.dose)} mg` : "pause" }))
         .concat(last && last.end < end ? [{ start: last.end, end, fill: PAPER_AFTER, label: "" }] : []),
-      pens: penSpans.map(({ start, end, label }) => ({ start, end, label })),
+      pens: penSpans.map(({ start, end, name, strength }) => ({ start, end, name, strength })),
       steps: {
-        head: ["Step", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Per dose", "Doses", "Every", "Dates", "Total"],
-        right: [false, ...(plan.clicks ? [false, true] : []), true, true, true, false, true],
-        widths: [5, ...(plan.clicks ? [10, 6] : []), 9, 7, 7, 18, 9],
-        rows: steps.map((s, i) => [String(i + 1), ...(plan.clicks ? [pen(s), String(s.clicks ?? 0)] : []), s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause", String(s.doses), plural(stepFreq(s, plan.freq), "day"),
+        head: ["Step", ...(plan.clicks ? ["Pen", "Strength", "Clicks"] : []), "Per dose", "Doses", "Every", "Dates", "Total"],
+        right: [false, ...(plan.clicks ? [false, true, true] : []), true, true, true, false, true],
+        widths: [5, ...(plan.clicks ? [6, 7, 6] : []), 9, 7, 7, 18, 9],
+        rows: steps.map((s, i) => [String(i + 1), ...(plan.clicks ? [...pen(s), String(s.clicks ?? 0)] : []), s.dose > 0 ? `${mgFmt(s.dose)} mg` : "Pause", String(s.doses), plural(stepFreq(s, plan.freq), "day"),
           s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * stepFreq(s, plan.freq), loc) : dayRange(s.start!, s.end! - 1, loc), s.dose > 0 ? `${mgFmt(s.dose * perStep[i].length)} mg` : "-"]),
       },
       doses: {
-        head: ["Date", "Week", ...(plan.clicks ? ["Pen", "Clicks"] : []), "Dose", "In body before"],
-        right: [false, true, ...(plan.clicks ? [false, true] : []), true, true],
-        widths: [14, 6, ...(plan.clicks ? [10, 6] : []), 8, 10],
-        rows: doseRows.map(({ e, s }) => [full(e.t), String(Math.floor(e.t / 7) + 1), ...(plan.clicks ? [pen(s), String(s.clicks)] : []), `${mgFmt(e.dose)} mg`, `${before.get(e)!.toFixed(2)} mg`]),
+        head: ["Date", "Week", ...(plan.clicks ? ["Pen", "Strength", "Clicks"] : []), "Dose", "Level before dose"],
+        right: [false, true, ...(plan.clicks ? [false, true, true] : []), true, true],
+        widths: [14, 6, ...(plan.clicks ? [6, 7, 6] : []), 8, 12],
+        rows: doseRows.map(({ e, s }) => [full(e.t), String(Math.floor(e.t / 7) + 1), ...(plan.clicks ? [...pen(s), String(s.clicks)] : []), `${mgFmt(e.dose)} mg`, `${before.get(e)!.toFixed(2)} mg`]),
       },
       disclaimer: DISCLAIMER,
       fileStem: `glp1-plan-${isoDay(new Date())}`,
@@ -498,12 +577,10 @@ export default function App() {
 
   return (
     <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-4 md:px-12 md:py-8">
-      {/* Reset is the header's only control, top right on the title's line at every width (user's request). */}
-      <header className="flex items-start justify-between gap-4 sm:items-center">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4">
-          <h1 className="text-2xl font-semibold tracking-tight">GLP-1 plotter</h1>
-          <span className="text-xs text-muted-foreground">{summary}</span>
-        </div>
+      {/* Reset is the header's only control, top right on the title's line at every width (user's request). The title
+          has no summary line under it: the settings card right below already shows the medication and length. */}
+      <header className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">GLP-1 plotter</h1>
         <AlertDialog>
           <AlertDialogTrigger asChild><Button variant="outline" className="shrink-0">Reset</Button></AlertDialogTrigger>
           <AlertDialogContent>
@@ -519,6 +596,8 @@ export default function App() {
         </AlertDialog>
       </header>
 
+      {/* Page-level messages only (a share link or file that couldn't be read, an export that failed). A dose that
+          couldn't be dialled exactly is said on its own step. */}
       {notes.length > 0 && (
         <Alert
           className={notesAnim === "in" ? "animate-in fade-in-0 slide-in-from-top-2 duration-200 ease-out" : notesAnim === "out" ? "animate-out fade-out-0 slide-out-to-top-3 duration-150 ease-out fill-mode-forwards" : undefined}
@@ -530,10 +609,11 @@ export default function App() {
         </Alert>
       )}
 
-      {/* Settings: two columns on phones, four in a mid-width card, one row once everything fits.
+      {/* Settings: two columns on phones, four in a mid-width card, one row once everything fits. In the one row the
+          fields share the width and the dose-entry toggle sits right after them, with no gap opening up before it.
           Sized by the card (container query), not the viewport. */}
       <Card className="@container">
-        <CardContent className="grid grid-cols-2 items-start gap-4 @lg:grid-cols-4 @lg:gap-6 @[69rem]:grid-cols-[minmax(0,14rem)_minmax(0,10rem)_minmax(0,10rem)_minmax(0,10rem)_minmax(max-content,1fr)]">
+        <CardContent className="grid grid-cols-2 items-start gap-4 @lg:grid-cols-4 @lg:gap-6 @[69rem]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_max-content]">
           <Field className="col-span-2 @[69rem]:col-span-1">
             <FieldLabel>Medication</FieldLabel>
             <Select value={plan.drug} onValueChange={v => update(p => { p.drug = v; if (v !== TIRZ) p.clicks = false })}>
@@ -557,15 +637,17 @@ export default function App() {
               </PopoverContent>
             </Popover>
           </Field>
-          <Field>
+          {/* On the narrowest phones (card under 19rem) the two steppers take a row each: half a row can't hold the
+              number, its unit and two touch-sized buttons. */}
+          <Field className="@max-[19rem]:col-span-2">
             <FieldLabel htmlFor="freq">Dose every</FieldLabel>
             <Stepper id="freq" value={plan.freq} step={0.5} min={0.5} max={30} unit={["day", "days", "d"]} onChange={v => update(p => { p.freq = v })} />
           </Field>
-          <Field>
+          <Field className="@max-[19rem]:col-span-2">
             <FieldLabel htmlFor="len">Chart length</FieldLabel>
             <Stepper id="len" value={plan.weeks} step={1} min={steps[steps.length - 1].to ?? 1} max={104} unit={["week", "weeks", "wk"]} onChange={v => update(p => { p.weeks = v })} />
           </Field>
-          <Field className="col-span-2 @[69rem]:col-span-1 @[69rem]:w-auto @[69rem]:justify-self-end">
+          <Field className="col-span-2 @[69rem]:col-span-1">
             <FieldLabel>Enter doses as</FieldLabel>
             <ToggleGroup className="grid grid-cols-[1fr_1fr]" type="single" variant="outline" spacing={0} value={plan.clicks ? "clicks" : "mg"} onValueChange={v => v && setClicks(v === "clicks")}>
               <ToggleGroupItem value="mg">mg</ToggleGroupItem>
@@ -575,82 +657,102 @@ export default function App() {
         </CardContent>
       </Card>
 
+      {/* Below xl one column: summary, chart, plan, doses. At xl the plan and the doses are the left column and the
+          summary and chart stay in view on the right while the plan scrolls, so neither column leaves a big gap. */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 xl:grid-cols-[minmax(0,680px)_minmax(0,1fr)]">
 
-        {/* Summary: one strip, values at body size so they read as context for the chart, not as headlines.
-            Three columns split by hairlines when there's room; label-left, value-right rows when narrow. */}
-        <section className="@container xl:col-start-2" aria-label="Summary">
-          <Card className="py-4">
-            <CardContent className="grid gap-3 @lg:grid-cols-3 @lg:gap-6">
-              {[
-                [today == null ? "Now" : today < 0 ? "Now · before start" : `Now · ${new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}`,
-                  today == null ? "—" : `≈ ${(today < 0 ? 0 : amountBefore(events, plan.drug, today)).toFixed(1)} mg`],
-                [!next ? "Next dose" : Math.floor(next.t) === Math.floor(today!) ? "Next dose · today" : `Next dose · ${dayLabel(next.t, true)}`,
-                  !next ? (plan.clicks && !penLeft ? "None left" : "None planned") : plan.clicks ? <>{nextStep?.clicks} cl <span className="font-normal text-muted-foreground">{mgFmt(next.dose)} mg</span></> : `${mgFmt(next.dose)} mg`],
-                [`Highest · ${dayLabel(peak[0], true)}`, `≈ ${peak[1].toFixed(1)} mg`],
-              ].map(([label, value], k) => (
-                <div key={k} className="flex items-baseline justify-between gap-4 border-t pt-3 first:border-t-0 first:pt-0 @lg:block @lg:border-t-0 @lg:border-s @lg:ps-6 @lg:pt-0 @lg:first:border-s-0 @lg:first:ps-0">
-                  <div className="text-xs text-muted-foreground">{label}</div>
-                  <div className="font-medium whitespace-nowrap">{value}</div>
-                </div>
+        <div className="flex flex-col gap-6 xl:sticky xl:top-8 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+          {/* Summary: three boxes, each a label, its value and the date it's for on a line of its own. Under 22rem (the
+              narrowest phones) the boxes stack, label on the left and value over date on the right. */}
+          <section className="@container/summary" aria-label="Summary">
+            <div className="grid gap-2 @[22rem]/summary:grid-cols-3 sm:gap-4">
+              {summary.map(({ label, value, sub }) => (
+                <Card key={label} size="sm" className="gap-0.5 px-3 @max-[22rem]/summary:grid @max-[22rem]/summary:grid-cols-[1fr_auto] @max-[22rem]/summary:gap-x-4 sm:px-4">
+                  <div className="text-xs text-muted-foreground @max-[22rem]/summary:row-span-2 @max-[22rem]/summary:self-center">{label}</div>
+                  <div className="font-medium tabular-nums @max-[22rem]/summary:justify-self-end">{value}</div>
+                  <div className={cn("text-xs text-muted-foreground tabular-nums @max-[22rem]/summary:text-end", sub == null && "@max-[22rem]/summary:hidden")}>{sub ?? "\u00a0"}</div>
+                </Card>
               ))}
-            </CardContent>
-          </Card>
-        </section>
+            </div>
+          </section>
 
-        <Card className="xl:col-start-2">
-          <CardHeader>
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider">Estimated amount in body (mg)</CardTitle>
-            <CardDescription>Shading shows the dose{showToday ? " · amber line is today" : ""}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={chartRef}>
-              <AreaChart data={data} margin={{ top: 24, left: 0, right: 8 }}>
-                <CartesianGrid vertical={false} />
-                <defs>
-                  <linearGradient id="dose-fill" x1="0" y1="0" x2="1" y2="0">
-                    {doseStops.map(([o, c], k) => <stop key={k} offset={o} style={{ stopColor: c }} />)}
-                  </linearGradient>
-                </defs>
-                {/* Transparent areas that only carry each dose level's mg label. Their own layer below the curve: Recharts 3 orders
-                    a layer by mount order, so without an explicit zIndex an area added later was drawn over the curve. */}
-                {runs.map((r, i) => (
-                  <ReferenceArea key={i} zIndex={-150} x1={r.start} x2={Math.min(r.end, end)} fill="transparent" ifOverflow="hidden"
-                    label={{ value: runLabel(r), position: "insideTopLeft", fill: "var(--muted-foreground)", fontSize: 13, dy: -20 }} />
-                ))}
-                <XAxis dataKey="t" type="number" domain={[0, end]} ticks={ticks} tickFormatter={v => dayLabel(v)} tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis width={32} tickLine={false} axisLine={false} domain={[0, yMax]} ticks={yTicks} />
-                <ChartTooltip content={<ChartTooltipContent indicator="line" labelFormatter={(_, p) => { const t = p?.[0]?.payload?.t as number; return `${dayLabel(t, true)} · day ${t}` }} formatter={v => `${Number(v ?? 0).toFixed(2)} mg`} />} />
-                <Area dataKey="mg" type="linear" stroke="var(--color-mg)" fill="url(#dose-fill)" fillOpacity={1} strokeWidth={2} isAnimationActive={false} />
-                {showToday && <ReferenceLine x={today!} stroke="var(--today)" strokeWidth={2} />}
-              </AreaChart>
-            </ChartContainer>
-            {/* Pens: a row under the dates, a hairline as wide as each pen's time in use with its name below. Nothing on
-                the plot itself, so the pens stay quiet. Offsets match the plot (y axis 32px, right margin 8px). A name that
-                doesn't fit its span shortens to "Pen N". */}
-            {penSpans.length > 0 && (
-              <div className="relative mt-1 h-6 text-xs text-muted-foreground" style={{ marginLeft: 32, marginRight: 8 }} aria-label="Pens">
-                {penSpans.map(p => (
-                  <div key={p.pi} className="absolute top-0 flex flex-col gap-1 overflow-hidden" style={{ left: `${p.start / end * 100}%`, width: `${(p.end - p.start) / end * 100}%` }}>
-                    <div className="mx-px h-px bg-muted-foreground/40" />
-                    <span className="truncate ps-0.5">{(p.end - p.start) / end * plotWidth >= p.label.length * 7.5 + 4 ? p.label : p.label.split(" · ")[0]}</span>
-                  </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Estimated amount in body (mg)</CardTitle>
+              {/* A key for what the colours mean, one item each; the mg of each level is above the plot. */}
+              <CardDescription className="flex flex-wrap gap-x-4 gap-y-1">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-[2px]" style={{ background: `linear-gradient(90deg, ${DOSE_COLOURS[0]}, ${DOSE_COLOURS[5]})` }} />Dose level</span>
+                {runs.some(r => r.dose <= 0) && <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-[2px]" style={{ background: NO_DOSE_COLOUR }} />Pause</span>}
+                {showToday && <span className="flex items-center gap-1.5"><span className="h-2.5 w-0.5 rounded-full bg-[var(--today)]" />Today</span>}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Dose level labels: one or two rows above the plot (positions worked out in runLabels). Offsets match the
+                  plot (y axis 32px, PLOT_RIGHT on the right). */}
+              <div className={cn("relative", twoRows ? "h-11" : "h-6")} style={{ marginLeft: 32, marginRight: PLOT_RIGHT }} aria-label="Dose levels">
+                {runLabels.map(l => (
+                  <span key={`${l.x}-${l.text}`} className="absolute flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums" style={{ left: l.x, bottom: l.row * 20 + 2 }}>
+                    <span className="size-2 rounded-[2px]" style={{ background: l.colour }} />{l.text}
+                  </span>
                 ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full" ref={chartRef}>
+                <AreaChart data={data} margin={{ top: 8, left: 0, right: PLOT_RIGHT }}>
+                  <CartesianGrid vertical={false} />
+                  <defs>
+                    <linearGradient id="dose-fill" x1="0" y1="0" x2="1" y2="0">
+                      {doseStops.map(([o, c], k) => <stop key={k} offset={o} style={{ stopColor: c }} />)}
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="t" type="number" domain={[0, end]} ticks={ticks} interval={0} tickFormatter={v => dayLabel(v)} tickLine={false} axisLine={false} tickMargin={8} />
+                  <YAxis width={32} tickLine={false} axisLine={false} domain={[0, yMax]} ticks={yTicks} />
+                  {/* Tooltip: one labelled row per fact (date, day, amount, the dose level at that time). */}
+                  <ChartTooltip content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null
+                    const t = payload[0].payload.t as number, mg = payload[0].payload.mg as number
+                    const r = runs.find(r => t >= r.start && t < r.end)
+                    const rows: [string, string][] = [["Date", dayLabel(t, true)], ["Day", String(Math.floor(t))], ["In body", `${mg.toFixed(2)} mg`],
+                      ["Dose", r ? (r.dose > 0 ? `${mgFmt(r.dose)} mg` : "Pause") : "After last dose"]]
+                    return (
+                      <dl className="grid min-w-40 grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-xl">
+                        {rows.map(([k, v]) => <div key={k} className="contents"><dt className="text-muted-foreground">{k}</dt><dd className="text-end font-medium tabular-nums">{v}</dd></div>)}
+                      </dl>
+                    )
+                  }} />
+                  <Area dataKey="mg" type="linear" stroke="var(--color-mg)" fill="url(#dose-fill)" fillOpacity={1} strokeWidth={2} isAnimationActive={false} />
+                  {showToday && <ReferenceLine x={today!} stroke="var(--today)" strokeWidth={2} />}
+                </AreaChart>
+              </ChartContainer>
+              {/* Pens: a row under the dates, a hairline as wide as each pen's time in use with its name and a strength
+                  chip below. Nothing on the plot itself, so the pens stay quiet. Offsets match the plot (y axis 32px,
+                  PLOT_RIGHT on the right). Without room for the chip, just the name. */}
+              {penSpans.length > 0 && (
+                <div className="relative mt-1 h-7 text-xs text-muted-foreground" style={{ marginLeft: 32, marginRight: PLOT_RIGHT }} aria-label="Pens">
+                  {penSpans.map(p => (
+                    <div key={p.pi} className="absolute top-0 flex flex-col gap-1 overflow-hidden" style={{ left: `${p.start / end * 100}%`, width: `${(p.end - p.start) / end * 100}%` }}>
+                      <div className="mx-px h-px bg-muted-foreground/40" />
+                      <div className="flex items-center gap-1.5 ps-0.5">
+                        <span className="truncate">{p.name}</span>
+                        {(p.end - p.start) / end * plotWidth >= (p.name.length + p.strength.length) * 7 + 30 && <Badge variant="outline" className="h-4 px-1.5 font-normal text-muted-foreground">{p.strength}</Badge>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        <section className="flex flex-col gap-6 xl:col-start-1 xl:row-span-3 xl:row-start-1" aria-label="Plan">
+        <section className="flex flex-col gap-6 xl:col-start-1 xl:row-start-1" aria-label="Plan">
           {!plan.clicks ? (
             <Card>
               <CardHeader>
                 <CardTitle>Steps</CardTitle>
-                <CardDescription>{weekSpan(1, steps[steps.length - 1].to!)} · {plural(events.length, "dose")}</CardDescription>
+                <CardDescription><Chips items={[weekSpan(1, steps[steps.length - 1].to!), plural(events.length, "dose")]} /></CardDescription>
               </CardHeader>
               <CardContent>{stepTable(steps.map((_, i) => i))}</CardContent>
               <CardFooter className="justify-center py-2">
-                <Button variant="ghost" onClick={() => update(p => { p.steps.push({ ...p.steps[p.steps.length - 1], doses: 1 }) })}><Plus data-icon="inline-start" />Add step</Button>
+                <Button variant="ghost" onClick={() => restructure(p => { p.steps.push({ ...p.steps[p.steps.length - 1], doses: 1 }) })}><Plus data-icon="inline-start" />Add step</Button>
               </CardFooter>
             </Card>
           ) : (
@@ -660,15 +762,17 @@ export default function App() {
                 const used = penUsed[pi]
                 const doses = own.reduce((n, [, i]) => n + perStep[i].length, 0)
                 const cap = penCap(pen), left = cap - used
+                const mgOf = (c: number) => `${mgFmt((c * pen.strength) / CLICKS)} mg`
                 return (
                   <Card key={pi}>
                     <CardHeader>
                       <CardTitle>Pen {pi + 1}</CardTitle>
-                      <CardDescription className="@max-md/card-header:col-span-2">{[`${pen.strength} mg KwikPen`, ...(own.length ? [weekSpan(own[0][0].from!, own[own.length - 1][0].to!), plural(doses, "dose")] : [])].map((t, k) => <span key={k}>{k ? " · " : ""}<span className="whitespace-nowrap">{t}</span></span>)}</CardDescription>
+                      {/* The strength is the menu on the right, so the chips don't repeat it. */}
+                      {own.length > 0 && <CardDescription className="@max-md/card-header:col-span-2"><Chips items={[weekSpan(own[0][0].from!, own[own.length - 1][0].to!), plural(doses, "dose")]} /></CardDescription>}
                       {/* Remove pen: in the title row, straight above the strength menu (user's pick "B2"). Pulled out by the
                           icon's inset so the × itself, not its button, lines up with the menu's right edge. */}
                       {plan.pens.length > 1 && (
-                        <Button variant="ghost" size="icon-sm" className="relative col-start-2 row-start-1 -my-1 -me-1.5 justify-self-end text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove pen ${pi + 1}`} onClick={() => update(p => {
+                        <Button variant="ghost" size="icon-sm" className="relative col-start-2 row-start-1 -my-1 -me-1.5 justify-self-end text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove pen ${pi + 1}`} onClick={() => restructure(p => {
                           p.steps = p.steps.filter(s => s.pen !== pi); p.steps.forEach(s => { if (s.pen! > pi) s.pen!-- }); p.pens.splice(pi, 1)
                         })}><X /></Button>
                       )}
@@ -686,17 +790,26 @@ export default function App() {
                       </CardAction>
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
+                      {/* The pen's contents: the meter, then Used / Holds / Left (or Over by) as three boxes, each in clicks
+                          with its mg under it. Over capacity, one note with the fix as a button. */}
                       <div className="flex flex-col gap-3">
                         <Progress className={left < 0 ? "[&_[data-slot=progress-indicator]]:bg-destructive" : undefined} value={Math.min(100, (used / cap) * 100)} aria-label={`Pen ${pi + 1} clicks used`} />
-                        <div className={`flex flex-wrap justify-between gap-2 text-xs ${left < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                          <span><span className="font-semibold text-foreground">{used}</span> / {cap} clicks used</span>
-                          <span>{left >= 0 ? `${left} clicks left · ${mgFmt((left * pen.strength) / CLICKS)} mg` : `${-left} clicks over (${mgFmt((-left * pen.strength) / CLICKS)} mg short). Add a pen or move steps.`}</span>
+                        <div className="grid grid-cols-3 gap-2">
+                          <Fact label="Used" value={`${used} cl`} sub={mgOf(used)} />
+                          <Fact label="Holds" value={`${cap} cl`} sub={mgOf(cap)} />
+                          {left >= 0 ? <Fact label="Left" value={`${left} cl`} sub={mgOf(left)} /> : <Fact warn label="Over by" value={`${-left} cl`} sub={`${mgOf(-left)} short`} />}
                         </div>
+                        {left < 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 py-1.5 ps-3 pe-1.5 text-xs text-destructive">
+                            <span>These steps need more than one pen holds.</span>
+                            <Button variant="outline" size="sm" onClick={addPen}><Plus data-icon="inline-start" />Add pen</Button>
+                          </div>
+                        )}
                       </div>
                       {stepTable(own.map(([, i]) => i))}
                     </CardContent>
                     <CardFooter className="justify-center py-2">
-                      <Button variant="ghost" onClick={() => update(p => {
+                      <Button variant="ghost" onClick={() => restructure(p => {
                         const mine = p.steps.filter(s => s.pen === pi), l = mine[mine.length - 1]
                         p.steps.splice(p.steps.indexOf(l) + 1, 0, { ...l, doses: 1 })
                       })}><Plus data-icon="inline-start" />Add step</Button>
@@ -704,28 +817,30 @@ export default function App() {
                   </Card>
                 )
               })}
-              <Button variant="outline" onClick={() => update(p => {
-                const l = p.steps[p.steps.length - 1]
-                p.pens.push({ strength: p.pens[l.pen!].strength }); p.steps.push({ ...l, doses: 1, pen: p.pens.length - 1 })
-              })}><Plus data-icon="inline-start" />Add pen</Button>
+              <Button variant="outline" onClick={addPen}><Plus data-icon="inline-start" />Add pen</Button>
             </>
           )}
         </section>
 
-        <Card className="xl:col-start-2">
+        <Card className="xl:col-start-1 xl:row-start-2">
           <CardHeader>
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider">Doses</CardTitle>
-            <CardDescription>{plural(events.length, "dose")}{plan.clicks ? ` · ${totalClicks} clicks` : ""} · {mgFmt(totalMg)} mg</CardDescription>
+            <CardTitle>Doses</CardTitle>
+            <div className={cn("mt-2 grid gap-2", plan.clicks ? "grid-cols-3" : "grid-cols-2")}>
+              <Fact label="Doses" value={events.length} />
+              {plan.clicks && <Fact label="Clicks" value={totalClicks} />}
+              <Fact label="Total" value={`${mgFmt(totalMg)} mg`} />
+            </div>
           </CardHeader>
           <CardContent>
+            {/* Phones in clicks mode swap Week for Clicks, so each dose stays one line. */}
             <Table className="text-xs [&_td]:py-3.5">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
-                  <TableHead className="text-end max-[359px]:hidden">Week</TableHead>
-                  {plan.clicks && <><TableHead className="max-sm:hidden">Pen</TableHead><TableHead className="text-end max-sm:hidden">Clicks</TableHead></>}
+                  <TableHead className={cn("text-end", plan.clicks ? "max-sm:hidden" : "max-[359px]:hidden")}>Week</TableHead>
+                  {plan.clicks && <><TableHead className="max-sm:hidden">Pen</TableHead><TableHead className="text-end">Clicks</TableHead></>}
                   <TableHead className="text-end">Dose</TableHead>
-                  <TableHead className="text-end max-sm:whitespace-normal">In body before</TableHead>
+                  <TableHead className="text-end max-sm:whitespace-normal">Level before dose</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -734,11 +849,16 @@ export default function App() {
                   const past = today != null && e.t < Math.floor(today), isNext = next === e
                   return (
                     <TableRow key={k} className={isNext ? "bg-[var(--today-soft)]" : past ? "text-muted-foreground" : undefined}>
-                      <TableCell className={isNext ? "font-semibold" : undefined}>{dayLabel(e.t, true)}{isNext && " · next"}</TableCell>
-                      <TableCell className="text-end max-[359px]:hidden">{Math.floor(e.t / 7) + 1}</TableCell>
-                      {plan.clicks && <><TableCell className="max-sm:hidden">{s.pen! + 1} · {plan.pens[s.pen!].strength} mg</TableCell><TableCell className="text-end max-sm:hidden">{s.clicks}</TableCell></>}
-                      <TableCell className="text-end">{mgFmt(e.dose)} mg{plan.clicks && <div className="text-muted-foreground sm:hidden">{s.clicks} cl</div>}</TableCell>
-                      <TableCell className="text-end">{before.get(e)!.toFixed(2)} mg</TableCell>
+                      <TableCell className={isNext ? "font-semibold" : undefined}>
+                        <div className="flex items-center gap-2">{dayLabel(e.t, true)}{isNext && <Badge variant="outline" className="border-[var(--today)] font-normal text-[var(--today)]">Next</Badge>}</div>
+                      </TableCell>
+                      <TableCell className={cn("text-end", plan.clicks ? "max-sm:hidden" : "max-[359px]:hidden")}>{Math.floor(e.t / 7) + 1}</TableCell>
+                      {plan.clicks && <>
+                        <TableCell className="max-sm:hidden"><div className="flex items-center gap-1.5">Pen {s.pen! + 1}<Badge variant="outline" className="h-4 px-1.5 font-normal text-muted-foreground">{plan.pens[s.pen!].strength} mg</Badge></div></TableCell>
+                        <TableCell className="text-end tabular-nums">{s.clicks}</TableCell>
+                      </>}
+                      <TableCell className="text-end tabular-nums">{mgFmt(e.dose)} mg</TableCell>
+                      <TableCell className="text-end tabular-nums">{before.get(e)!.toFixed(2)} mg</TableCell>
                     </TableRow>
                   )
                 })}
@@ -775,7 +895,7 @@ export default function App() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => { if (pendingImport) { setNotes([]); setNotesAnim("none"); setPlan(pendingImport.plan) } setPendingImport(null) }}>Replace</AlertDialogAction>
+              <AlertDialogAction onClick={() => { if (pendingImport) { setNotes([]); setNotesAnim("none"); setDial([]); setPlan(pendingImport.plan) } setPendingImport(null) }}>Replace</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -5,16 +5,16 @@
 export type Table = { head: string[]; rows: string[][]; right: boolean[]; widths: number[] }  // widths: relative
 export type ExportData = {
   title: string            // "Tirzepatide dosing plan"
-  subtitle: string         // "Injection · estimated amount in the body"
+  subtitle: string         // "Estimated amount in the body"
   made: string             // "Made 2 Oct 2026"
-  facts: [string, string][]
+  facts: ([string, string] | [string, string, string])[]  // label, value, optional second line (a date)
   pts: [number, number][]
   end: number              // chart length in days
   yMax: number
   yTicks: number[]
   xTicks: { t: number; label: string }[]
   bands: { start: number; end: number; fill: string; label: string }[]
-  pens: { start: number; end: number; label: string }[]  // a row under the dates; empty in mg mode
+  pens: { start: number; end: number; name: string; strength: string }[]  // a row under the dates; empty in mg mode
   steps: Table
   doses: Table
   disclaimer: string
@@ -66,13 +66,19 @@ export function chartSvg(d: ExportData, w: number, h: number, framed: boolean) {
     labelEnds[row] = lx + tw + fs * 0.6
     s += `<text x="${lx}" y="${T - 8 - row * fs * 1.4}" font-size="${fs}" font-weight="600" fill="${INK}">${esc(b.label)}</text>`
   }
-  // Pens: a hairline as wide as each pen's time in use, its name below; the name shortens to "Pen N", or goes, if it doesn't fit.
+  // Pens: a hairline as wide as each pen's time in use, its name below and its strength in an outlined chip beside the
+  // name; without room for the chip just the name, without room for that nothing.
   const py = B + fs + 6 + fs * 0.9
   for (const p of d.pens) {
     const x0 = x(p.start) + 1, x1 = x(Math.min(p.end, d.end)) - 1, room = x1 - x0 - 2
     s += `<line x1="${x0}" x2="${x1}" y1="${py}" y2="${py}" stroke="${MARK}" stroke-width="1"/>`
-    const label = [p.label, p.label.split(" · ")[0]].find(l => l.length * fs * 0.55 <= room)
-    if (label) s += `<text x="${x0 + 2}" y="${py + fs + 3}" font-size="${fs}" fill="${INK2}">${esc(label)}</text>`
+    const nameW = p.name.length * fs * 0.55, chipW = p.strength.length * fs * 0.5 + fs * 0.8
+    if (nameW <= room) s += `<text x="${x0 + 2}" y="${py + fs + 3}" font-size="${fs}" fill="${INK2}">${esc(p.name)}</text>`
+    if (nameW + fs * 0.5 + chipW <= room) {
+      const cx = x0 + 2 + nameW + fs * 0.5
+      s += `<rect x="${cx}" y="${py + 3}" width="${chipW}" height="${fs * 1.3}" rx="${fs * 0.65}" fill="none" stroke="${RULE}" stroke-width="1"/>`
+      s += `<text x="${cx + chipW / 2}" y="${py + fs + 2}" font-size="${fs * 0.85}" text-anchor="middle" fill="${INK2}">${esc(p.strength)}</text>`
+    }
   }
   s += `<path d="${line}" fill="none" stroke="${LINE}" stroke-width="${framed ? 2.5 : 1.5}" stroke-linejoin="round"/>`
   if (framed) s += `<text x="${pad}" y="${h - pad + 8}" font-size="13" fill="${INK2}">${esc(d.disclaimer)}</text>`
@@ -122,11 +128,12 @@ export async function exportPdf(d: ExportData) {
   y += 20
 
   const colW = CW / d.facts.length
-  d.facts.forEach(([k, v], i) => {
+  d.facts.forEach(([k, v, sub], i) => {
     doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); ink2(); doc.text(k, M + i * colW, y)
     doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); ink(); doc.text(v, M + i * colW, y + 14)
+    if (sub) { doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); ink2(); doc.text(sub, M + i * colW, y + 26) }
   })
-  y += 38
+  y += d.facts.some(f => f[2]) ? 48 : 38
 
   const label = (t: string) => { doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); ink2(); doc.text(t.toUpperCase(), M, y, { charSpace: 0.6 }); y += 16 }
 
