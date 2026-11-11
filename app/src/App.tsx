@@ -162,7 +162,7 @@ function Stepper({ id, value, onChange, step, min, max, unit }: {
   if (value !== shown) { setShown(value); setDraft(String(value)) }
   const clamp = (v: number) => Math.min(max, Math.max(min, Math.round(v / step) * step))
   const nudge = (d: number) => onChange(clamp(value + d))
-  const btn = "grid size-7 shrink-0 place-items-center rounded-[6px] text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-9"
+  const btn = "grid size-7 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-9"
   return (
     <div className="@container flex h-9 w-full items-center rounded-lg border border-input bg-transparent ps-3 pe-1 text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 pointer-coarse:h-11 dark:bg-muted">
       <label htmlFor={id} className="flex min-w-0 flex-1 cursor-text items-baseline gap-1">
@@ -251,10 +251,10 @@ function Tile({ label, title, wide, onStep, canDown, canUp, what, children }: {
   label: string; title?: string; wide?: boolean; onStep: (d: number) => void; canDown: boolean; canUp: boolean; what: string; children: ReactNode
 }) {
   return (
-    <div title={title} className={cn("flex min-w-0 flex-col rounded-[10px] bg-white/[.045] pt-2 focus-within:ring-1 focus-within:ring-input focus-within:ring-inset", wide ? "px-2.5 @max-[21.5rem]/pen:px-2" : "px-2")}>
+    <div title={title} className={cn("flex min-w-0 flex-col rounded-lg bg-white/[.045] pt-2 focus-within:ring-1 focus-within:ring-input focus-within:ring-inset", wide ? "px-2.5 @max-[21.5rem]/pen:px-2" : "px-2")}>
       <div className="text-xs text-muted-foreground">{label}</div>
       {children}
-      <div className={cn("mt-auto grid grid-cols-2 border-t border-white/8 [&>*+*]:border-l [&>*+*]:border-white/8 [&>:first-child]:rounded-bl-[10px] [&>:last-child]:rounded-br-[10px]", wide ? "-mx-2.5 @max-[21.5rem]/pen:-mx-2" : "-mx-2")}>
+      <div className={cn("mt-auto grid grid-cols-2 border-t border-white/8 [&>*+*]:border-l [&>*+*]:border-white/8 [&>:first-child]:rounded-bl-lg [&>:last-child]:rounded-br-lg", wide ? "-mx-2.5 @max-[21.5rem]/pen:-mx-2" : "-mx-2")}>
         <HoldButton label={`${what}: one fewer`} disabled={!canDown} onStep={() => onStep(-1)}><Minus className="size-3.5" strokeWidth={1.5} /></HoldButton>
         <HoldButton label={`${what}: one more`} disabled={!canUp} onStep={() => onStep(1)}><Plus className="size-3.5" strokeWidth={1.5} /></HoldButton>
       </div>
