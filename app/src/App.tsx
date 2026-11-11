@@ -1034,7 +1034,7 @@ export default function App() {
                   </section>
                   <section className="grid gap-1">
                     <h3 className="font-medium text-foreground">Privacy</h3>
-                    <p>Your plan is stored only in this browser. Nothing is sent to a server: no accounts, cookies or tracking. A share link contains your plan, so anyone with the link can see it. The site is hosted on GitHub Pages, which keeps standard server logs.</p>
+                    <p>Your plan is stored only in this browser and never leaves it. No accounts or cookies; visits are counted anonymously. A share link contains your plan, so anyone with the link can see it. The site is hosted on GitHub Pages, which keeps standard server logs.</p>
                   </section>
                 </div>
               </AlertDialogDescription>
