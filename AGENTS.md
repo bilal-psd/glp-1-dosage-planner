@@ -2,7 +2,7 @@
 
 A single-page tool that plots the estimated amount of a GLP-1 medication in the body over time, for a titration plan made of steps (and, for tirzepatide, KwikPens dialled by clicks). It runs entirely in the browser: no accounts, no backend; the plan is saved in `localStorage`.
 
-Live at https://bilal-psd.github.io/glp-1-dosage-planner/ (GitHub Pages, served from the root of `main`).
+Live at https://glp1.bybilal.in/ (GitHub Pages, served from the root of `main`; the custom domain is set by the `CNAME` file, and its DNS record lives in Vercel, which runs bybilal.in).
 
 ## Layout
 

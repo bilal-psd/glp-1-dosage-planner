@@ -2,7 +2,7 @@
 
 Plot the estimated amount of a GLP-1 medication in your body over a titration plan, and plan tirzepatide KwikPens by clicks.
 
-**[Open the plotter](https://bilal-psd.github.io/glp-1-dosage-planner/)**
+**[Open the plotter](https://glp1.bybilal.in/)**
 
 ![The plotter with a three-pen tirzepatide plan](docs/screenshot.png)
 
