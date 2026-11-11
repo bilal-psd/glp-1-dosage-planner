@@ -10,6 +10,7 @@ Live at https://glp1.bybilal.in/ (GitHub Pages, served from the root of `main`; 
   - `app/src/App.tsx`: the page.
   - `app/src/lib/export.ts`: the PNG and PDF exports (jsPDF, loaded only when a PDF is made).
   - `app/src/index.css`: colour tokens (on `.dark`).
+  - `app/public/`: copied as-is into the repo root on build. The icons (a miniature dose curve: four weekly doses, two dose levels) and `manifest.webmanifest`, which with the `apple-*` meta tags in `app/index.html` lets the page be added to an iPhone home screen as "GLP-1". `icon.svg` is the full-bleed source (iOS rounds the corners itself); `favicon.svg` is the small-size cut with a thicker line and no baseline. The PNGs and `favicon.ico` are rasterised from them; redraw them if the SVGs change.
 - `model.js`: the maths and scheduling rules, a pure ES module bundled into the page at build time.
 - `test/model.test.mjs`: tests that pin the model.
 - `index.html`, `assets/`: **build output**. Never edit by hand.
