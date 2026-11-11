@@ -15,15 +15,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -180,6 +178,85 @@ function Stepper({ id, value, onChange, step, min, max, unit }: {
       <div className="flex items-center gap-0.5">
         <button type="button" className={btn} aria-label={`Fewer ${unit[1]}`} disabled={value <= min} onClick={() => nudge(-step)}><Minus className="size-3.5" strokeWidth={1.5} /></button>
         <button type="button" className={btn} aria-label={`More ${unit[1]}`} disabled={value >= max} onClick={() => nudge(step)}><Plus className="size-3.5" strokeWidth={1.5} /></button>
+      </div>
+    </div>
+  )
+}
+
+// A small filled tag for a fact about something: a pen's weeks, a step's dates, a dose's clicks. Filled, not outlined:
+// outlines are kept for things you can change.
+function Tag({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn("inline-flex h-5 shrink-0 items-center rounded-md bg-white/6 px-1.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums", className)}>{children}</span>
+}
+
+// − or + in a step's tile. A press steps once; holding keeps stepping, faster the longer it's held (from 130 ms down to
+// 30 ms a step), and stops at the limit, where the button is disabled. Enter or Space from the keyboard step once.
+function HoldButton({ onStep, disabled, label, children }: { onStep: () => void; disabled?: boolean; label: string; children: ReactNode }) {
+  const timer = useRef(0)
+  const step = useRef(onStep)
+  useEffect(() => { step.current = onStep })
+  const stop = () => { clearTimeout(timer.current); timer.current = 0 }
+  useEffect(() => { if (disabled) stop() }, [disabled])
+  useEffect(() => stop, [])
+  return (
+    <button type="button" aria-label={label} disabled={disabled}
+      className="grid h-[34px] touch-manipulation place-items-center text-muted-foreground transition-colors outline-none select-none hover:bg-white/7 hover:text-foreground focus-visible:bg-white/7 focus-visible:text-foreground active:bg-accent disabled:pointer-events-none disabled:opacity-35 pointer-coarse:h-10"
+      onPointerDown={e => {
+        if (e.button !== 0) return
+        e.preventDefault(); step.current()
+        let n = 0
+        const tick = () => { step.current(); n++; timer.current = window.setTimeout(tick, Math.max(30, 130 - n * 10)) }
+        timer.current = window.setTimeout(tick, 380)
+      }}
+      onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onBlur={stop} onContextMenu={e => e.preventDefault()}
+      onClick={e => { if (e.detail === 0) step.current() }}>
+      {children}
+    </button>
+  )
+}
+
+// A tile's value, typed in place: a tap selects it, Enter (or leaving it) keeps what was typed, Esc puts it back, ↑ and ↓
+// nudge it. Nothing changes while typing, so "3." isn't rounded under the cursor. The field is as wide as its text (an
+// invisible copy of the text sizes the grid cell both share), so the unit sits right after the number.
+function TileValue({ value, label, onCommit, onNudge, className }: {
+  value: string; label: string; onCommit: (v: number) => void; onNudge: (d: number) => void; className?: string
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const fresh = useRef(false), cancel = useRef(false)
+  const shown = draft ?? value
+  return (
+    <span className={cn("inline-grid shrink-0 self-start", className)}>
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 pe-px whitespace-pre">{shown || "0"}</span>
+      <input type="text" inputMode="decimal" enterKeyHint="done" autoComplete="off" size={1} aria-label={label} value={shown}
+        className="col-start-1 row-start-1 w-0 min-w-full cursor-text border-b border-dashed border-input bg-transparent p-0 outline-none hover:border-muted-foreground focus:border-solid focus:border-foreground"
+        onFocus={e => { setDraft(value); e.target.select(); fresh.current = true }}
+        onMouseUp={e => { if (fresh.current) { e.preventDefault(); fresh.current = false } }}
+        onChange={e => setDraft(e.target.value.replace(/[^\d.,]/g, ""))}
+        onKeyDown={e => {
+          if (e.key === "Enter") e.currentTarget.blur()
+          else if (e.key === "Escape") { cancel.current = true; e.currentTarget.blur() }
+          else if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); onNudge(e.key === "ArrowUp" ? 1 : -1); setDraft(null) }
+        }}
+        onBlur={() => {
+          const v = draft == null ? NaN : parseFloat(draft.replace(",", "."))
+          if (!cancel.current && !isNaN(v) && draft !== value) onCommit(v)
+          cancel.current = false; fresh.current = false; setDraft(null)
+        }} />
+    </span>
+  )
+}
+
+// One of a step's three tiles: a label, the value, and − / + along the bottom (user's pick "E1"). Per dose is the wide one.
+function Tile({ label, title, wide, onStep, canDown, canUp, what, children }: {
+  label: string; title?: string; wide?: boolean; onStep: (d: number) => void; canDown: boolean; canUp: boolean; what: string; children: ReactNode
+}) {
+  return (
+    <div title={title} className={cn("flex min-w-0 flex-col rounded-[10px] bg-white/[.045] pt-2 focus-within:ring-1 focus-within:ring-input focus-within:ring-inset", wide ? "px-2.5 @max-[21.5rem]/pen:px-2" : "px-2")}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      {children}
+      <div className={cn("mt-auto grid grid-cols-2 border-t border-white/8 [&>*+*]:border-l [&>*+*]:border-white/8 [&>:first-child]:rounded-bl-[10px] [&>:last-child]:rounded-br-[10px]", wide ? "-mx-2.5 @max-[21.5rem]/pen:-mx-2" : "-mx-2")}>
+        <HoldButton label={`${what}: one fewer`} disabled={!canDown} onStep={() => onStep(-1)}><Minus className="size-3.5" strokeWidth={1.5} /></HoldButton>
+        <HoldButton label={`${what}: one more`} disabled={!canUp} onStep={() => onStep(1)}><Plus className="size-3.5" strokeWidth={1.5} /></HoldButton>
       </div>
     </div>
   )
@@ -363,79 +440,35 @@ export default function App() {
     )
   }
 
-  // ---- One step as a table row; clicks mode gets − / slider / +, mg mode a number field.
+  // ---- One step as a table row (mg mode; clicks mode uses penStep). No remove ×: at 1 dose the Doses field's − becomes a bin.
   function stepRow(i: number) {
     const s = steps[i], n = perStep[i].length
-    const removable = steps.length > 1 && !(plan.clicks && steps.filter(x => x.pen === s.pen).length === 1)
-    const setClicksTo = (c: number) => update(p => { p.steps[i].clicks = Math.min(CLICKS, Math.max(0, c)) })
     const dates = s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * stepFreq(s, plan.freq)) : dayRange(s.start!, s.end! - 1)
-    const pause = <Badge variant="secondary" className="font-normal">Pause</Badge>
-    const rounded = plan.clicks ? dial.find(d => d.i === i && d.clicks === s.clicks && d.strength === plan.pens[s.pen!]?.strength) : undefined
-    // Phones: two columns. Left: what the step is, then the slider; right: the Doses field above the clicks field, the same
-    // width and right edge as the pen's strength menu (user's pick "B2"). In clicks mode the mg per dose heads the step,
-    // right above the slider that sets it. No remove ×: at 1 dose the Doses field's − becomes a bin.
-    return [
-      <TableRow key={i} className={cn("max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_7.5rem] max-sm:items-center max-sm:gap-3 max-sm:py-4 max-sm:*:p-0", rounded && "border-b-0")}>
-        <TableCell className={plan.clicks ? undefined : "max-sm:col-span-2"}>
-          {plan.clicks && (
-            <div className="flex flex-col gap-1 sm:hidden">
-              <div className="font-semibold tabular-nums">{s.dose > 0 ? `${mgFmt(s.dose)} mg` : pause}</div>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                <Badge variant="outline" className="font-normal text-muted-foreground">Step {i + 1}</Badge>
-                <span className="whitespace-nowrap">{dates}</span>
-              </div>
-            </div>
-          )}
-          <div className={plan.clicks ? "max-sm:hidden" : undefined}>
-            <div className="flex items-center gap-2">Step {i + 1}{s.dose > 0 ? null : pause}</div>
-            <div className="text-xs text-muted-foreground">{dates}</div>
+    return (
+      <TableRow key={i} className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_7.5rem] max-sm:items-center max-sm:gap-3 max-sm:py-4 max-sm:*:p-0">
+        <TableCell className="max-sm:col-span-2">
+          <div className="flex items-center gap-2">Step {i + 1}{s.dose > 0 ? null : <Badge variant="secondary" className="font-normal">Pause</Badge>}</div>
+          <div className="text-xs text-muted-foreground">{dates}</div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <MgField value={s.dose} label={`Step ${i + 1} dose in mg`} onChange={v => update(p => { p.steps[i].dose = v })} />
+            <span className="text-xs text-muted-foreground sm:hidden" aria-hidden="true">mg</span>
           </div>
         </TableCell>
-        <TableCell className={plan.clicks ? "max-sm:col-span-2 max-sm:col-start-1 max-sm:row-start-2" : undefined}>
-          {plan.clicks ? (
-            // Slider for big moves; the clicks field beside it for exact clicks, with − and + next to the number (user's pick "B").
-            <div className="flex items-center gap-3 sm:gap-4">
-              <Slider className="min-w-20" min={0} max={CLICKS} step={1} value={[s.clicks ?? 0]} onValueChange={([v]) => setClicksTo(v)} aria-label={`Step ${i + 1} clicks per dose`} />
-              <CountField value={s.clicks ?? 0} min={0} max={CLICKS} unit="cl" label={`Step ${i + 1} clicks per dose`} onChange={setClicksTo} />
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <MgField value={s.dose} label={`Step ${i + 1} dose in mg`} onChange={v => update(p => { p.steps[i].dose = v })} />
-              <span className="text-xs text-muted-foreground sm:hidden" aria-hidden="true">mg</span>
-            </div>
-          )}
-        </TableCell>
         <TableCell className="text-end max-sm:hidden">
-          {/* The result of the inputs, so quieter than them: the mg a click count makes, or a mg step's total. */}
-          {s.dose > 0
-            ? <div className={cn("tabular-nums", plan.clicks ? "font-medium" : "text-muted-foreground")}>{mgFmt(plan.clicks ? s.dose : s.dose * n)} mg</div>
-            : <div className="text-muted-foreground">–</div>}
+          {/* The result of the inputs, so quieter than them: the step's total mg. */}
+          {s.dose > 0 ? <div className="text-muted-foreground tabular-nums">{mgFmt(s.dose * n)} mg</div> : <div className="text-muted-foreground">–</div>}
         </TableCell>
-        <TableCell className={plan.clicks ? "max-sm:col-start-2 max-sm:row-start-1" : undefined}>
+        <TableCell>
           <div className="flex flex-col items-end gap-1">
             <CountField value={s.doses} unit={s.doses === 1 ? "dose" : "doses"} label={`Step ${i + 1} number of doses`} onChange={v => update(p => { p.steps[i].doses = v })}
-              onRemove={removable ? () => restructure(p => { p.steps.splice(i, 1) }) : undefined} removeLabel={`Remove step ${i + 1}`} />
+              onRemove={steps.length > 1 ? () => restructure(p => { p.steps.splice(i, 1) }) : undefined} removeLabel={`Remove step ${i + 1}`} />
             {intervalPicker(i)}
           </div>
         </TableCell>
-      </TableRow>,
-      // A dose that couldn't be dialled exactly: said on its own step, with what was asked and what it is now.
-      rounded && (
-        <TableRow key={`${i}-dial`} className="hover:bg-transparent max-sm:block max-sm:pb-4">
-          <TableCell colSpan={4} className="pt-0 max-sm:block max-sm:p-0">
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 py-1.5 ps-3 pe-1 text-xs whitespace-normal">
-              <Info className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
-              <span className="text-muted-foreground">Rounded to the nearest click on a {rounded.strength} mg pen</span>
-              <div className="flex flex-wrap gap-1.5">
-                <Badge variant="outline" className="font-normal text-muted-foreground tabular-nums">Asked {mgFmt(rounded.was)} mg</Badge>
-                <Badge variant="secondary" className="font-normal tabular-nums">Now {mgFmt(rounded.now)} mg</Badge>
-              </div>
-              <Button variant="ghost" size="icon-xs" className="ms-auto text-muted-foreground" aria-label="Dismiss" onClick={() => setDial(d => d.filter(x => x !== rounded))}><X /></Button>
-            </div>
-          </TableCell>
-        </TableRow>
-      ),
-    ]
+      </TableRow>
+    )
   }
 
   function stepTable(indices: number[]) {
@@ -445,8 +478,8 @@ export default function App() {
         <TableHeader className="max-sm:hidden">
           <TableRow>
             <TableHead className="w-28">Step</TableHead>
-            <TableHead>{plan.clicks ? "Clicks per dose" : "Dose (mg)"}</TableHead>
-            <TableHead className="w-24 text-end">{plan.clicks ? "Dose" : "Total"}</TableHead>
+            <TableHead>Dose (mg)</TableHead>
+            <TableHead className="w-24 text-end">Total</TableHead>
             <TableHead className="w-36 text-end">Doses</TableHead>
           </TableRow>
         </TableHeader>
@@ -456,8 +489,79 @@ export default function App() {
     )
   }
 
+  // A dose that couldn't be dialled exactly: said on its own step, with what was asked and what it is now.
+  const dialNote = (rounded: (typeof dial)[number]) => (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 py-1.5 ps-3 pe-1 text-xs whitespace-normal">
+      <Info className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
+      <span className="text-muted-foreground">Rounded to the nearest click on a {rounded.strength} mg pen</span>
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant="outline" className="font-normal text-muted-foreground tabular-nums">Asked {mgFmt(rounded.was)} mg</Badge>
+        <Badge variant="secondary" className="font-normal tabular-nums">Now {mgFmt(rounded.now)} mg</Badge>
+      </div>
+      <Button variant="ghost" size="icon-xs" className="ms-auto text-muted-foreground" aria-label="Dismiss" onClick={() => setDial(d => d.filter(x => x !== rounded))}><X /></Button>
+    </div>
+  )
+
+  // ---- One step in a pen card (clicks mode). Top line: "Step N" with its bin, the dates as a tag at the right (user's
+  // pick "swapped"). Then three tiles, each with − / + along its bottom and a value you can type (user's pick "E1"): Per
+  // dose (wider, mg with the clicks as a tag on the same line, a bar for the share of a full 60-click dose; picks "W1"
+  // and "G1"), Doses (with the step's total mg) and Every (just the days; no "from plan"). On a wide card the step is one
+  // row: name, tiles, dates.
+  function penStep(i: number, removable: boolean) {
+    const s = steps[i], clicks = s.clicks ?? 0, f = stepFreq(s, plan.freq), strength = plan.pens[s.pen!].strength
+    const dates = s.dose > 0 ? dayRange(s.start!, s.start! + (s.doses - 1) * f) : dayRange(s.start!, s.end! - 1)
+    const rounded = dial.find(d => d.i === i && d.clicks === s.clicks && d.strength === strength)
+    const setClicksTo = (fn: (c: number) => number) => update(p => { const t = p.steps[i]; t.clicks = Math.min(CLICKS, Math.max(0, Math.round(fn(t.clicks ?? 0)))) })
+    const setDosesTo = (fn: (n: number) => number) => update(p => { const t = p.steps[i]; t.doses = Math.min(99, Math.max(1, Math.round(fn(t.doses)))) })
+    // Half-day steps; the plan's own interval clears the step's, so it follows the plan again.
+    const setFreqTo = (fn: (d: number) => number) => update(p => {
+      const t = p.steps[i], v = Math.min(30, Math.max(0.5, Math.round(fn(stepFreq(t, p.freq)) * 2) / 2))
+      if (v === p.freq) delete t.freq; else t.freq = v
+    })
+    const share = Math.round((clicks / CLICKS) * 100)
+    return (
+      <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 border-t px-(--card-spacing) pt-3 pb-3.5 first:border-t-0 @[34rem]/pen:grid-cols-[6.5rem_auto_minmax(0,1fr)] @[34rem]/pen:pb-3">
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="font-semibold whitespace-nowrap">Step {i + 1}</span>
+          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" disabled={!removable}
+            aria-label={`Remove step ${i + 1}`} title={removable ? `Remove step ${i + 1}` : "A pen keeps at least one step"}
+            onClick={() => restructure(p => { p.steps.splice(i, 1) })}><Trash2 className="size-3.5" /></Button>
+        </div>
+        <Tag className="h-auto min-h-5 justify-self-end py-0.5 text-end text-balance whitespace-normal @[34rem]/pen:col-start-3">{dates}</Tag>
+        <div className="col-span-2 grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1.5 @max-[21.5rem]/pen:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)_minmax(0,1fr)] @max-[21.5rem]/pen:gap-1 @[34rem]/pen:col-span-1 @[34rem]/pen:col-start-2 @[34rem]/pen:row-start-1 @[34rem]/pen:grid-cols-[11rem_6.5rem_6.5rem]">
+          <Tile wide label="Per dose" title={`${share}% of a full dose`} what={`Step ${i + 1} clicks per dose`} canDown={clicks > 0} canUp={clicks < CLICKS} onStep={d => setClicksTo(c => c + d)}>
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1 gap-y-1">
+              <span className="flex min-w-0 items-baseline gap-[3px]">
+                <TileValue className="text-xl leading-tight font-semibold @max-[21.5rem]/pen:text-lg" value={mgFmt(s.dose)} label={`Step ${i + 1} dose in mg`}
+                  onCommit={v => setClicksTo(() => M.toClicks(v, strength))} onNudge={d => setClicksTo(c => c + d)} />
+                <span className="text-[13px] text-muted-foreground">mg</span>
+              </span>
+              <Tag className="@max-[21.5rem]/pen:h-[18px] @max-[21.5rem]/pen:px-[5px] @max-[21.5rem]/pen:text-[11px]">{clicks ? `${clicks} cl` : "Pause"}</Tag>
+            </div>
+            <div className="mt-[7px] mb-2.5 h-1 overflow-hidden rounded-full bg-accent" role="meter" aria-label={`Step ${i + 1}: share of a full dose`} aria-valuenow={share} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-data" style={{ width: `${share}%` }} />
+            </div>
+          </Tile>
+          <Tile label="Doses" what={`Step ${i + 1} number of doses`} canDown={s.doses > 1} canUp={s.doses < 99} onStep={d => setDosesTo(n => n + d)}>
+            <TileValue className="leading-snug font-semibold" value={String(s.doses)} label={`Step ${i + 1} number of doses`}
+              onCommit={v => setDosesTo(() => v)} onNudge={d => setDosesTo(n => n + d)} />
+            <div className="mb-2 text-xs text-balance text-muted-foreground">{mgFmt(s.dose * s.doses)} mg total</div>
+          </Tile>
+          <Tile label="Every" what={`Step ${i + 1} days between doses`} canDown={f > 0.5} canUp={f < 30} onStep={d => setFreqTo(v => v + d * 0.5)}>
+            <span className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-[3px]">
+              <TileValue className="leading-snug font-semibold" value={mgFmt(f)} label={`Step ${i + 1} days between doses`}
+                onCommit={v => setFreqTo(() => v)} onNudge={d => setFreqTo(v => v + d * 0.5)} />
+              <span className="text-[13px] text-muted-foreground">{f === 1 ? "day" : "days"}</span>
+            </span>
+          </Tile>
+        </div>
+        {rounded && <div className="col-span-full">{dialNote(rounded)}</div>}
+      </div>
+    )
+  }
+
   // ---- Chart
-  const chartConfig = { mg: { label: "In body", color: "var(--chart-1)" } } satisfies ChartConfig
+  const chartConfig ={ mg: { label: "In body", color: "var(--chart-1)" } } satisfies ChartConfig
   const data = pts.map(([t, v]) => ({ t, mg: +v.toFixed(3) }))
   // Date ticks a whole number of weeks apart, as many as fit (≈60px each) up to 9, so Recharts never has to drop one
   // and leave an uneven gap. The exports use their own fixed spacing.
@@ -761,53 +865,63 @@ export default function App() {
                 const own = steps.map((s, i) => [s, i] as const).filter(([s]) => s.pen === pi)
                 const used = penUsed[pi]
                 const doses = own.reduce((n, [, i]) => n + perStep[i].length, 0)
-                const cap = penCap(pen), left = cap - used
+                const cap = penCap(pen), left = cap - used, over = left < 0, n = cap / CLICKS
                 const mgOf = (c: number) => `${mgFmt((c * pen.strength) / CLICKS)} mg`
                 return (
-                  <Card key={pi}>
-                    <CardHeader>
-                      <CardTitle>Pen {pi + 1}</CardTitle>
-                      {/* The strength is the menu on the right, so the chips don't repeat it. */}
-                      {own.length > 0 && <CardDescription className="@max-md/card-header:col-span-2"><Chips items={[weekSpan(own[0][0].from!, own[own.length - 1][0].to!), plural(doses, "dose")]} /></CardDescription>}
-                      {/* Remove pen: in the title row, straight above the strength menu (user's pick "B2"). Pulled out by the
-                          icon's inset so the × itself, not its button, lines up with the menu's right edge. */}
-                      {plan.pens.length > 1 && (
-                        <Button variant="ghost" size="icon-sm" className="relative col-start-2 row-start-1 -my-1 -me-1.5 justify-self-end text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove pen ${pi + 1}`} onClick={() => restructure(p => {
+                  <Card key={pi} className="@container/pen gap-0 py-0">
+                    {/* The pen's own band, set apart from its steps by colour and a line: name and tags, remove ×, golden dose
+                        and strength (user's pick "B2": their own row under the ×, at the right on a wide card), the meter. */}
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-band p-(--card-spacing)">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+                        <CardTitle className="me-1">Pen {pi + 1}</CardTitle>
+                        {/* The strength is the menu below, so the tags don't repeat it. */}
+                        {own.length > 0 && <><Tag>{weekSpan(own[0][0].from!, own[own.length - 1][0].to!)}</Tag><Tag>{plural(doses, "dose")}</Tag></>}
+                      </div>
+                      {plan.pens.length > 1 ? (
+                        <Button variant="ghost" size="icon-sm" className="relative -my-1 -me-1.5 justify-self-end text-muted-foreground after:absolute after:-inset-2 hover:text-foreground" aria-label={`Remove pen ${pi + 1}`} onClick={() => restructure(p => {
                           p.steps = p.steps.filter(s => s.pen !== pi); p.steps.forEach(s => { if (s.pen! > pi) s.pen!-- }); p.pens.splice(pi, 1)
                         })}><X /></Button>
-                      )}
-                      {/* The pen's settings: golden dose (user's pick "B") and strength, under the remove ×. On a narrow card
-                          (phones) they move to their own row under the title, golden dose left, strength right. */}
-                      <CardAction className="row-span-1 row-start-2 flex items-center gap-3 @max-md/card-header:col-span-2 @max-md/card-header:col-start-1 @max-md/card-header:row-start-3 @max-md/card-header:mt-2 @max-md/card-header:justify-self-stretch">
-                        <div className="flex items-center gap-2 @max-md/card-header:me-auto">
+                      ) : <span />}
+                      <div className="col-span-2 flex items-center justify-between gap-3 @[26rem]/pen:justify-self-end">
+                        <div className="flex items-center gap-2">
                           <Switch id={`gold-${pi}`} checked={!!pen.gold} onCheckedChange={c => update(p => { p.pens[pi].gold = c })} />
                           <Label htmlFor={`gold-${pi}`} className="text-xs font-normal whitespace-nowrap text-muted-foreground" title={`Counts the extra dose most pens hold (+${CLICKS} clicks); not guaranteed`}>Golden dose</Label>
                         </div>
                         <Select value={String(pen.strength)} onValueChange={v => update(p => { p.pens[pi].strength = +v })}>
-                          <SelectTrigger className="w-30" aria-label={`Pen ${pi + 1} strength`}><SelectValue /></SelectTrigger>
-                          <SelectContent>{STRENGTHS.map(v => <SelectItem key={v} value={String(v)}>{v} mg</SelectItem>)}</SelectContent>
+                          <SelectTrigger className="w-36" aria-label={`Pen ${pi + 1} strength`}><SelectValue /></SelectTrigger>
+                          <SelectContent>{STRENGTHS.map(v => <SelectItem key={v} value={String(v)}>{v} mg pen</SelectItem>)}</SelectContent>
                         </Select>
-                      </CardAction>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-4">
-                      {/* The pen's contents: the meter, then Used / Holds / Left (or Over by) as three boxes, each in clicks
-                          with its mg under it. Over capacity, one note with the fix as a button. */}
-                      <div className="flex flex-col gap-3">
-                        <Progress className={left < 0 ? "[&_[data-slot=progress-indicator]]:bg-destructive" : undefined} value={Math.min(100, (used / cap) * 100)} aria-label={`Pen ${pi + 1} clicks used`} />
-                        <div className="grid grid-cols-3 gap-2">
-                          <Fact label="Used" value={`${used} cl`} sub={mgOf(used)} />
-                          <Fact label="Holds" value={`${cap} cl`} sub={mgOf(cap)} />
-                          {left >= 0 ? <Fact label="Left" value={`${left} cl`} sub={mgOf(left)} /> : <Fact warn label="Over by" value={`${-left} cl`} sub={`${mgOf(-left)} short`} />}
+                      </div>
+                      {/* The meter: one segment per dose the pen holds (4, or 5 with the golden dose, whose segment is striped:
+                          not guaranteed), then Used and Left (or Over by), each in clicks with its mg under it. */}
+                      <div className="col-span-2 flex flex-col gap-2">
+                        <div className="grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }} role="meter" aria-label={`Pen ${pi + 1} clicks used`} aria-valuenow={used} aria-valuemin={0} aria-valuemax={cap}>
+                          {Array.from({ length: n }, (_, k) => {
+                            const fill = over ? 1 : Math.min(1, Math.max(0, (used - k * CLICKS) / CLICKS)), golden = !!pen.gold && k === n - 1
+                            return (
+                              <span key={k} title={golden ? "Golden dose" : `Dose ${k + 1}`} className={cn("block h-2 overflow-hidden rounded-[2px] bg-accent first:rounded-s-full last:rounded-e-full", golden && "bg-[repeating-linear-gradient(135deg,var(--accent)_0_3px,#3a3b42_3px_6px)]")}>
+                                <span className={cn("block h-full", over ? "bg-destructive" : "bg-data")} style={{ width: `${fill * 100}%` }} />
+                              </span>
+                            )
+                          })}
                         </div>
-                        {left < 0 && (
-                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 py-1.5 ps-3 pe-1.5 text-xs text-destructive">
-                            <span>These steps need more than one pen holds.</span>
-                            <Button variant="outline" size="sm" onClick={addPen}><Plus data-icon="inline-start" />Add pen</Button>
+                        <div className="flex justify-between gap-4 tabular-nums">
+                          <div><div className="text-xs text-muted-foreground">Used</div><div className="font-semibold">{used} of {cap} cl</div><div className="text-xs text-muted-foreground">{mgOf(used)}</div></div>
+                          <div className={cn("text-end", over && "text-destructive")}>
+                            <div className={cn("text-xs", !over && "text-muted-foreground")}>{over ? "Over by" : "Left"}</div>
+                            <div className="font-semibold">{Math.abs(left)} cl</div>
+                            <div className={cn("text-xs", !over && "text-muted-foreground")}>{mgOf(Math.abs(left))}{over ? " short" : ""}</div>
+                          </div>
+                        </div>
+                        {over && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 py-1 ps-3 pe-1 text-xs text-destructive">
+                            <span>More than this pen holds</span>
+                            <Button variant="outline" size="sm" className="text-foreground" onClick={addPen}><Plus data-icon="inline-start" />Add pen</Button>
                           </div>
                         )}
                       </div>
-                      {stepTable(own.map(([, i]) => i))}
-                    </CardContent>
+                    </div>
+                    <div>{own.map(([, i]) => penStep(i, own.length > 1))}</div>
                     <CardFooter className="justify-center py-2">
                       <Button variant="ghost" onClick={() => restructure(p => {
                         const mine = p.steps.filter(s => s.pen === pi), l = mine[mine.length - 1]
