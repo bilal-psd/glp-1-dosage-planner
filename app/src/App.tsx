@@ -44,7 +44,9 @@ const stepFreq = M.stepFreq as (s: Step, freq: number) => number
 const upgradePlan = M.upgradePlan as (p: Plan) => Plan
 const KEY = "glp1-plotter:v1"
 // Shown once at the bottom of the page, and in the PNG and on every PDF page.
-const DISCLAIMER = "Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice."
+// Footer word-links (credit, Privacy & disclaimer): quiet grey, underlined so they read as links.
+const footLink = "rounded-sm underline decoration-muted-foreground/40 underline-offset-3 transition-colors outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+const DISCLAIMER ="Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice."
 
 // Six steps of the data teal (OKLCH hue 182), deep to light, for the area under the curve; kept darker than the curve itself.
 const DOSE_COLOURS = Array.from({ length: 6 }, (_, i) => { const f = i / 5; return `oklch(${(0.36 + 0.30 * f).toFixed(3)} ${(0.055 + 0.045 * f).toFixed(3)} 182)` })
@@ -1013,7 +1015,35 @@ export default function App() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <p className="mt-4 text-xs text-muted-foreground">{DISCLAIMER}</p>
+        {/* The short medical line stays visible; the full disclaimer and the privacy note open in a dialog from a word-link
+            (user's choice: a link, not a seventh footer button). The exports keep the full DISCLAIMER line. */}
+        <p className="mt-4 text-xs text-muted-foreground">Estimate only, not medical advice.</p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>Built with ♥ by <a href="https://bybilal.in" target="_blank" rel="noopener" className={footLink}>Bilal</a></span>
+          <AlertDialog>
+            <AlertDialogTrigger asChild><button type="button" className={footLink}>Privacy &amp; disclaimer</button></AlertDialogTrigger>
+            <AlertDialogContent className="data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-md">
+              <AlertDialogHeader className="place-items-start text-left">
+                <AlertDialogTitle>Privacy &amp; disclaimer</AlertDialogTitle>
+              </AlertDialogHeader>
+              <AlertDialogDescription asChild>
+                <div className="grid gap-4 text-sm">
+                  <section className="grid gap-1">
+                    <h3 className="font-medium text-foreground">Not medical advice</h3>
+                    <p>Estimates from a one-compartment model using glapp.io's drug constants, not measurements. Always follow your prescriber's instructions. Provided as is, without warranty.</p>
+                  </section>
+                  <section className="grid gap-1">
+                    <h3 className="font-medium text-foreground">Privacy</h3>
+                    <p>Your plan is stored only in this browser. Nothing is sent to a server: no accounts, cookies or tracking. A share link contains your plan, so anyone with the link can see it. The site is hosted on GitHub Pages, which keeps standard server logs.</p>
+                  </section>
+                </div>
+              </AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogAction>Close</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </footer>
     </main>
   )
