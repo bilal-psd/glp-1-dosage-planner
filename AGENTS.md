@@ -69,6 +69,7 @@ Ported from glapp.io's plotter so results are directly comparable. Don't change 
 - `--data` (teal) is only for medication data: the curve, pen meters, dose sliders. Interactive chrome stays neutral.
 - Layouts use Tailwind container queries sized by the card, not the viewport. Check 320, 375, 768, 1280 and 1440 px when changing layout.
 - The exports redraw the chart in a light "paper" palette. PDF text must stay Latin-1 (jsPDF's built-in Helvetica), so no "≈".
+- Visits are counted with GoatCounter (site `glp1`, cookieless): `app/index.html` loads it with `no_onload`, and `countVisit()` in `App.tsx` counts once as `/` after the URL is stripped, because count.js sends `location.search`. Nothing else leaves the browser; the Privacy & disclaimer dialog says so ("visits are counted anonymously"), so keep the two in step.
 - The page is an estimate, not medical advice; keep the disclaimer on the page and in both exports (`DISCLAIMER` in `App.tsx`).
 
 ## Gotchas

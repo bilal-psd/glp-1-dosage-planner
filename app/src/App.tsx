@@ -44,6 +44,19 @@ const stepFreq = M.stepFreq as (s: Step, freq: number) => number
 const upgradePlan = M.upgradePlan as (p: Plan) => Plan
 const KEY = "glp1-plotter:v1"
 // Shown once at the bottom of the page, and in the PNG and on every PDF page.
+// Anonymous visit count. GoatCounter's count.js loads from index.html with no_onload, and is called once here, after the
+// page has stripped the query and hash: count.js sends location.search with every count, so counting before the strip
+// would send a glapp-style link's doses. Blocked or failed loads just don't count.
+let counted = false
+function countVisit() {
+  if (counted) return
+  counted = true
+  const w = window as unknown as { goatcounter?: { count?: (o: { path: string }) => void } }
+  const go = () => w.goatcounter?.count?.({ path: "/" })
+  if (w.goatcounter?.count) go()
+  else document.querySelector("script[data-goatcounter]")?.addEventListener("load", go, { once: true })
+}
+
 // Footer word-links (credit, Privacy & disclaimer): quiet grey, underlined so they read as links.
 const footLink = "rounded-sm underline decoration-muted-foreground/40 underline-offset-3 transition-colors outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
 const DISCLAIMER ="Estimate from a one-compartment model with glapp.io's drug constants. Not a measurement, and not medical advice."
@@ -282,7 +295,7 @@ export default function App() {
   const fileRef = useRef<HTMLInputElement>(null)
   const chartRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { if (location.search || location.hash) history.replaceState(null, "", location.pathname) }, [])
+  useEffect(() => { if (location.search || location.hash) history.replaceState(null, "", location.pathname); countVisit() }, [])
 
   // Every edit goes through here: copy, change, re-stack the steps, recompute mg from clicks.
   const update = (fn: (p: Plan) => void) => setPlan(prev => {
