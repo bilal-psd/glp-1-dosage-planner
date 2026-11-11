@@ -520,15 +520,15 @@ export default function App() {
     })
     const share = Math.round((clicks / CLICKS) * 100)
     return (
-      <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 border-t px-(--card-spacing) pt-3 pb-3.5 first:border-t-0 @[34rem]/pen:grid-cols-[6.5rem_auto_minmax(0,1fr)] @[34rem]/pen:pb-3">
-        <div className="flex min-w-0 items-center gap-1">
+      <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 border-t px-(--card-spacing) pt-3 pb-3.5 first:border-t-0 @[34rem]/pen:grid-cols-[8.5rem_minmax(0,1fr)] @[34rem]/pen:grid-rows-[auto_1fr] @[34rem]/pen:items-start @[34rem]/pen:gap-x-4 @[34rem]/pen:gap-y-1.5">
+        <div className="flex min-w-0 items-center gap-1 @[34rem]/pen:-mt-0.5">
           <span className="font-semibold whitespace-nowrap">Step {i + 1}</span>
           <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" disabled={!removable}
             aria-label={`Remove step ${i + 1}`} title={removable ? `Remove step ${i + 1}` : "A pen keeps at least one step"}
             onClick={() => restructure(p => { p.steps.splice(i, 1) })}><Trash2 className="size-3.5" /></Button>
         </div>
-        <Tag className="h-auto min-h-5 justify-self-end py-0.5 text-end text-balance whitespace-normal @[34rem]/pen:col-start-3">{dates}</Tag>
-        <div className="col-span-2 grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1.5 @max-[21.5rem]/pen:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)_minmax(0,1fr)] @max-[21.5rem]/pen:gap-1 @[34rem]/pen:col-span-1 @[34rem]/pen:col-start-2 @[34rem]/pen:row-start-1 @[34rem]/pen:grid-cols-[11rem_6.5rem_6.5rem]">
+        <Tag className="h-auto min-h-5 justify-self-end py-0.5 text-end text-balance whitespace-normal @[34rem]/pen:col-start-1 @[34rem]/pen:row-start-2 @[34rem]/pen:justify-self-start @[34rem]/pen:text-start">{dates}</Tag>
+        <div className="col-span-2 grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1.5 @max-[21.5rem]/pen:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)_minmax(0,1fr)] @max-[21.5rem]/pen:gap-1 @[34rem]/pen:col-span-1 @[34rem]/pen:col-start-2 @[34rem]/pen:row-span-2 @[34rem]/pen:row-start-1">
           <Tile wide label="Per dose" title={`${share}% of a full dose`} what={`Step ${i + 1} clicks per dose`} canDown={clicks > 0} canUp={clicks < CLICKS} onStep={d => setClicksTo(c => c + d)}>
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1 gap-y-1">
               <span className="flex min-w-0 items-baseline gap-[3px]">
