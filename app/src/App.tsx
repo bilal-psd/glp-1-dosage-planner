@@ -574,10 +574,10 @@ export default function App() {
             <TileValue className="leading-snug font-semibold" value={String(s.doses)} label={`Step ${i + 1} number of doses`}
               onCommit={v => setDosesTo(() => v)} onNudge={d => setDosesTo(n => n + d)} />
             {/* The line count depends on the tile's width, never on the number, so holding − / + never changes the
-                row's height: one line where "157.5 mg total" fits, otherwise "… mg" and "total" on two lines. */}
-            <div className="mb-2 text-xs whitespace-nowrap text-muted-foreground @min-[88px]/tile:truncate">
-              <span className="block truncate @min-[88px]/tile:inline">{mgFmt(s.dose * s.doses)} mg</span>{" "}
-              <span className="block @min-[88px]/tile:inline">total</span>
+                row's height: one line where "157.5 mg total" fits, otherwise the number, then "mg total" under it (a 320
+                phone's tile is 48px wide: "23.33 mg" doesn't fit, "mg total" does at 12px). */}
+            <div className="mb-2 text-xs whitespace-nowrap text-muted-foreground @max-[21.5rem]/pen:text-[12px] @min-[88px]/tile:truncate">
+              <span className="block @min-[88px]/tile:inline">{mgFmt(s.dose * s.doses)}</span> mg total
             </div>
           </Tile>
           <Tile label="Every" what={`Step ${i + 1} days between doses`} canDown={f > 0.5} canUp={f < 30} onStep={d => setFreqTo(v => v + d * 0.5)}>
@@ -947,20 +947,17 @@ export default function App() {
                             <div className={cn("text-xs", !over && "text-muted-foreground")}>{mgOf(Math.abs(left))}{over ? " short" : ""}</div>
                           </div>
                         </div>
-                        {over && (
-                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 py-1 ps-3 pe-1 text-xs text-destructive">
-                            <span>More than this pen holds</span>
-                            <Button variant="outline" size="sm" className="text-foreground" onClick={addPen}><Plus data-icon="inline-start" />Add pen</Button>
-                          </div>
-                        )}
                       </div>
                     </div>
                     <div>{own.map(([, i]) => penStep(i, own.length > 1))}</div>
-                    <CardFooter className="justify-center py-2">
+                    {/* Over capacity, Add pen joins Add step here (user's pick "C"): nothing appears above the steps, so a
+                        held − / + never moves. The red meter and "Over by" carry the warning. */}
+                    <CardFooter className="flex-wrap justify-center gap-1 py-2">
                       <Button variant="ghost" onClick={() => restructure(p => {
                         const mine = p.steps.filter(s => s.pen === pi), l = mine[mine.length - 1]
                         p.steps.splice(p.steps.indexOf(l) + 1, 0, { ...l, doses: 1 })
                       })}><Plus data-icon="inline-start" />Add step</Button>
+                      {over && <Button variant="ghost" className="border border-destructive/45 bg-destructive/8 text-destructive hover:bg-destructive/15 hover:text-destructive" onClick={addPen}><Plus data-icon="inline-start" />Add pen</Button>}
                     </CardFooter>
                   </Card>
                 )
