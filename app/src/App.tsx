@@ -71,8 +71,17 @@ const mgFmt = (v: number) => (+v).toFixed(2).replace(/\.?0+$/, "")
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
 // The plan as plain JSON: what a share link carries and what a plan file holds (with a small wrapper).
 const planJson = (plan: Plan) => ({ start: plan.start, weeks: plan.weeks, drug: plan.drug, freq: plan.freq, clicks: plan.clicks, gold: plan.gold, pens: plan.pens, steps: plan.steps.map(({ dose, doses, freq, pen, clicks }) => ({ dose, doses, freq, pen, clicks })) })
-// What Reset leaves: today's date, one 2.5 mg dose every 7 days, entered in mg (user's choice: a blank plan, not the example).
-const blankPlan = (): Plan => ({ start: isoDay(new Date()), weeks: 12, drug: TIRZ, freq: 7, clicks: false, gold: false, pens: [], steps: [{ dose: 2.5, doses: 1 }] })
+// What Reset leaves: today's date, one 2.5 mg dose every 7 days (user's choice: a blank plan, not the example), entered
+// as KwikPen clicks, the default mode (user's request): a full 60 clicks of a 2.5 mg pen.
+const blankPlan = (): Plan => ({ start: isoDay(new Date()), weeks: 12, drug: TIRZ, freq: 7, clicks: true, gold: false, pens: [{ strength: 2.5, gold: false }], steps: [{ dose: 2.5, doses: 1, pen: 0, clicks: 60 }] })
+// What a first-time visitor sees (user's request): a plan in KwikPen clicks, started four weeks ago so "today" falls
+// inside it, with nothing in red: Pen 1 (10 mg) uses 180 of 240 clicks, Pen 2 (15 mg) 120 of 240.
+// M.EXAMPLE stays the mg plan the tests pin and the base that older saved plans and links are filled in from.
+const starterPlan = (): Plan => ({
+  start: isoDay(new Date(Date.now() - 28 * 864e5)), weeks: 12, drug: TIRZ, freq: 7, clicks: true, gold: false,
+  pens: [{ strength: 10, gold: false }, { strength: 15, gold: false }],
+  steps: [{ dose: 2.5, doses: 4, pen: 0, clicks: 15 }, { dose: 5, doses: 4, pen: 0, clicks: 30 }, { dose: 7.5, doses: 4, pen: 1, clicks: 30 }],
+})
 // Stacks the steps and stretches the chart to fit them (never shrinks it). Clicks mode needs tirzepatide and a pen for
 // every step; a plan that breaks either (an old or hand-made link or file) falls back to mg, which keeps every dose.
 function fit(p: Plan) {
@@ -83,7 +92,7 @@ function fit(p: Plan) {
 }
 const valid = (v: unknown): v is Plan => !!v && typeof v === "object" && Array.isArray((v as Plan).steps) && (v as Plan).steps.length > 0 && (v as Plan).drug in DRUGS
 
-// Load: a glapp-style link wins, then a share link (#plan=…), then what this browser saved, then the example.
+// Load: a glapp-style link wins, then a share link (#plan=…), then what this browser saved, then the starter plan.
 // Share links and saved plans from before steps were counted in doses have weeks per step; upgradePlan converts them.
 function initialPlan(): { plan: Plan; notes: string[] } {
   const link = M.fromGlappParams(new URLSearchParams(location.search))
@@ -101,7 +110,7 @@ function initialPlan(): { plan: Plan; notes: string[] } {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "null")
     if (valid(v)) return { plan: upgradePlan(v), notes }
   } catch { /* fall through */ }
-  return { plan: structuredClone(EXAMPLE), notes }
+  return { plan: starterPlan(), notes }
 }
 
 // Every fact on the page has its own box: a small label, the value, and an optional second line under it (a date,
@@ -266,7 +275,7 @@ function Tile({ label, title, wide, onStep, canDown, canUp, what, children }: {
   label: string; title?: string; wide?: boolean; onStep: (d: number) => void; canDown: boolean; canUp: boolean; what: string; children: ReactNode
 }) {
   return (
-    <div title={title} className={cn("flex min-w-0 flex-col rounded-lg bg-white/[.045] pt-2 focus-within:ring-1 focus-within:ring-input focus-within:ring-inset", wide ? "px-2.5 @max-[21.5rem]/pen:px-2" : "px-2")}>
+    <div title={title} className={cn("@container/tile flex min-w-0 flex-col rounded-lg bg-white/[.045] pt-2 focus-within:ring-1 focus-within:ring-input focus-within:ring-inset", wide ? "px-2.5 @max-[21.5rem]/pen:px-2" : "px-2")}>
       <div className="text-xs text-muted-foreground">{label}</div>
       {children}
       <div className={cn("mt-auto grid grid-cols-2 border-t border-white/8 [&>*+*]:border-l [&>*+*]:border-white/8 [&>:first-child]:rounded-bl-lg [&>:last-child]:rounded-br-lg", wide ? "-mx-2.5 @max-[21.5rem]/pen:-mx-2" : "-mx-2")}>
@@ -424,7 +433,9 @@ export default function App() {
     const x = dateAt(a), y = dateAt(b)
     // The browser's own range format puts day and month in the locale's order; within one month the dash is closed up
     // ("5–12 Sept", "Sep 5–12"), across months it keeps its spaces ("29 Aug – 5 Sept").
-    if (!x || !y) return `${dayLabel(a, false, loc)} – ${dayLabel(b, false, loc)}`
+    // Across a new year formatRange adds both years ("Oct 15, 2026 – Jan 7, 2027"), long enough to wrap the step's
+    // date tag on a phone and push its tiles down while − / + is held; day and month alone, like every other range.
+    if (!x || !y || x.getFullYear() !== y.getFullYear()) return `${dayLabel(a, false, loc)} – ${dayLabel(b, false, loc)}`
     const range = new Intl.DateTimeFormat(loc, { day: "numeric", month: "short" }).formatRange(x, y)
     return x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear() ? range.replace(/\s*–\s*/, "–") : range
   }
@@ -545,13 +556,15 @@ export default function App() {
         <Tag className="h-auto min-h-5 justify-self-end py-0.5 text-end text-balance whitespace-normal @[34rem]/pen:col-start-1 @[34rem]/pen:row-start-2 @[34rem]/pen:justify-self-start @[34rem]/pen:text-start">{dates}</Tag>
         <div className="col-span-2 grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1.5 @max-[21.5rem]/pen:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)_minmax(0,1fr)] @max-[21.5rem]/pen:gap-1 @[34rem]/pen:col-span-1 @[34rem]/pen:col-start-2 @[34rem]/pen:row-span-2 @[34rem]/pen:row-start-1">
           <Tile wide label="Per dose" title={`${share}% of a full dose`} what={`Step ${i + 1} clicks per dose`} canDown={clicks > 0} canUp={clicks < CLICKS} onStep={d => setClicksTo(c => c + d)}>
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1 gap-y-1">
-              <span className="flex min-w-0 items-baseline gap-[3px]">
+            {/* Never wraps: the tile's height must not change while − / + is held (the longest value, "12.29 mg" with
+                "59 cl", fits the narrowest tile). */}
+            <div className="flex min-w-0 items-center justify-between gap-x-1 whitespace-nowrap">
+              <span className="flex min-w-0 items-baseline gap-[3px] overflow-hidden">
                 <TileValue className="text-xl leading-tight font-semibold @max-[21.5rem]/pen:text-lg" value={mgFmt(s.dose)} label={`Step ${i + 1} dose in mg`}
                   onCommit={v => setClicksTo(() => M.toClicks(v, strength))} onNudge={d => setClicksTo(c => c + d)} />
                 <span className="text-[13px] text-muted-foreground">mg</span>
               </span>
-              <Tag className="@max-[21.5rem]/pen:h-[18px] @max-[21.5rem]/pen:px-[5px] @max-[21.5rem]/pen:text-[11px]">{clicks ? `${clicks} cl` : "Pause"}</Tag>
+              <Tag className="shrink-0 @max-[21.5rem]/pen:h-[18px] @max-[21.5rem]/pen:px-[5px] @max-[21.5rem]/pen:text-[11px]">{clicks ? `${clicks} cl` : "Pause"}</Tag>
             </div>
             <div className="mt-[7px] mb-2.5 h-1 overflow-hidden rounded-full bg-accent" role="meter" aria-label={`Step ${i + 1}: share of a full dose`} aria-valuenow={share} aria-valuemin={0} aria-valuemax={100}>
               <div className="h-full rounded-full bg-data" style={{ width: `${share}%` }} />
@@ -560,10 +573,16 @@ export default function App() {
           <Tile label="Doses" what={`Step ${i + 1} number of doses`} canDown={s.doses > 1} canUp={s.doses < 99} onStep={d => setDosesTo(n => n + d)}>
             <TileValue className="leading-snug font-semibold" value={String(s.doses)} label={`Step ${i + 1} number of doses`}
               onCommit={v => setDosesTo(() => v)} onNudge={d => setDosesTo(n => n + d)} />
-            <div className="mb-2 text-xs text-balance text-muted-foreground">{mgFmt(s.dose * s.doses)} mg total</div>
+            {/* The line count depends on the tile's width, never on the number, so holding − / + never changes the
+                row's height: one line where "157.5 mg total" fits, otherwise "… mg" and "total" on two lines. */}
+            <div className="mb-2 text-xs whitespace-nowrap text-muted-foreground @min-[88px]/tile:truncate">
+              <span className="block truncate @min-[88px]/tile:inline">{mgFmt(s.dose * s.doses)} mg</span>{" "}
+              <span className="block @min-[88px]/tile:inline">total</span>
+            </div>
           </Tile>
           <Tile label="Every" what={`Step ${i + 1} days between doses`} canDown={f > 0.5} canUp={f < 30} onStep={d => setFreqTo(v => v + d * 0.5)}>
-            <span className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-[3px]">
+            {/* Same rule: "days" sits beside the number where "10.5 days" fits, otherwise always under it. */}
+            <span className="mb-2 flex min-w-0 flex-col whitespace-nowrap @min-[66px]/tile:flex-row @min-[66px]/tile:items-baseline @min-[66px]/tile:gap-x-[3px]">
               <TileValue className="leading-snug font-semibold" value={mgFmt(f)} label={`Step ${i + 1} days between doses`}
                 onCommit={v => setFreqTo(() => v)} onNudge={d => setFreqTo(v => v + d * 0.5)} />
               <span className="text-[13px] text-muted-foreground">{f === 1 ? "day" : "days"}</span>

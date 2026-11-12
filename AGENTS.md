@@ -60,7 +60,7 @@ Ported from glapp.io's plotter so results are directly comparable. Don't change 
 ## Persistence and links
 
 - The plan is saved to `localStorage` key `glp1-plotter:v1` after every change.
-- Load order: glapp-style query params (`medicationN`, `doseN`, `fromN`, `toN`, `frequencyN`, `start_date`, `length`) → share link (`#plan=`, base64url JSON) → saved plan → built-in example. The page then strips the query and hash.
+- Load order: glapp-style query params (`medicationN`, `doseN`, `fromN`, `toN`, `frequencyN`, `start_date`, `length`) → share link (`#plan=`, base64url JSON) → saved plan → the starter plan (`starterPlan()` in `App.tsx`: KwikPen clicks, started four weeks before today, both pens under capacity so nothing shows red). `M.EXAMPLE` in `model.js` is the mg plan the tests pin and the base older plans are filled in from; it isn't shown. Reset opens `blankPlan()` (today, one 60-click dose of a 2.5 mg pen). The page then strips the query and hash.
 - Plan files (Export / Import plan) are `{ app: "glp1-plotter", version: 1, plan }`.
 
 ## Conventions
@@ -75,5 +75,6 @@ Ported from glapp.io's plotter so results are directly comparable. Don't change 
 ## Gotchas
 
 - **Recharts 3 orders chart layers by mount order, not JSX order.** A layer added after the first render can draw over the curve; give layers an explicit `zIndex` (the dose-label areas use `-150`).
+- **Pen step tiles must never change height with their values** (− / + repeat while held, so a jump moves the button under the finger). Each tile is a `@container/tile`; how many lines its text takes depends on the tile's width only (`@min-[88px]/tile` puts "… mg total" on one line, `@min-[66px]/tile` puts "days" beside the number), and every line is `whitespace-nowrap`. Cross-year date ranges leave out the years for the same reason.
 - **`CountField` inside a flex row needs `shrink-0`**, or it collapses until the number disappears.
 - `npx eslint` reports 3 known `react-refresh/only-export-components` errors in shadcn's `badge`, `button` and `toggle`; they're harmless.
